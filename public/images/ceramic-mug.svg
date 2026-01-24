@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900" viewBox="0 0 900 900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7fbff"/>
+      <stop offset="1" stop-color="#eef3f9"/>
+    </linearGradient>
+    <linearGradient id="mugBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff7ee"/>
+      <stop offset="1" stop-color="#ecd9c6"/>
+    </linearGradient>
+    <linearGradient id="glaze" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F4A460" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#D2691E" stop-opacity="0.9"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000000" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect width="900" height="900" fill="url(#bg)"/>
+
+  <g filter="url(#shadow)" transform="translate(0,10)">
+    <!-- Mug body -->
+    <path d="M290 290c0-40 32-72 72-72h220c40 0 72 32 72 72v290c0 70-58 128-128 128H418c-70 0-128-58-128-128V290z"
+          fill="url(#mugBody)"/>
+
+    <!-- Glaze band -->
+    <path d="M290 320c0-22 18-40 40-40h320c22 0 40 18 40 40v55H290v-55z"
+          fill="url(#glaze)" opacity="0.95"/>
+
+    <!-- Rim -->
+    <path d="M330 218h320c22 0 40 18 40 40v24H290v-24c0-22 18-40 40-40z"
+          fill="#fffdf9" opacity="0.95"/>
+
+    <!-- Handle -->
+    <path d="M655 355c80 0 120 45 120 115s-40 115-120 115h-30v-60h25c42 0 65-22 65-55s-23-55-65-55h-25v-60h30z"
+          fill="#e9d6c3"/>
+    <path d="M655 380c60 0 90 32 90 90s-30 90-90 90h-12v-35h10c34 0 52-18 52-55s-18-55-52-55h-10v-35h12z"
+          fill="#f5e6d7"/>
+
+    <!-- Subtle highlight -->
+    <path d="M355 310c20-45 60-70 120-70h40" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" opacity="0.45"/>
+  </g>
+
+  <!-- Small “handmade” stamp -->
+  <g opacity="0.7">
+    <circle cx="450" cy="650" r="42" fill="none" stroke="#8B4513" stroke-width="6"/>
+    <path d="M430 650h40" stroke="#8B4513" stroke-width="6" stroke-linecap="round"/>
+    <path d="M450 630v40" stroke="#8B4513" stroke-width="6" stroke-linecap="round"/>
+  </g>
+</svg>
+
