@@ -524,12 +524,7 @@ const handleQtyChange = async (action) => {
 }
 
 const showCartToast = () => {
-  const n = cart.totalQty.value
-  if (!n) {
-    showToast('Cart is empty')
-    return
-  }
-  showToast(`${n} item${n === 1 ? '' : 's'} in cart`)
+  router.push('/cart')
 }
 
 const discountPercent = computed(() => {

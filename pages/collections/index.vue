@@ -8,6 +8,10 @@
       </NuxtLink>
 
       <div class="topbar-actions">
+        <NuxtLink to="/cart" class="cart-link" aria-label="Shopping cart">
+          🛒
+          <span v-if="cart.totalQty.value" class="cart-badge" aria-label="Cart items">{{ cart.totalQty.value }}</span>
+        </NuxtLink>
         <button class="icon-btn" type="button" aria-label="Scroll to top" @click="scrollToTop">
           ↑
         </button>
@@ -43,7 +47,6 @@
         </div>
         <div class="count">
           {{ filteredProducts.length }} item<span v-if="filteredProducts.length !== 1">s</span>
-          <span v-if="totalElements !== null" class="count-muted"> / {{ totalElements }}</span>
         </div>
       </div>
 
@@ -53,7 +56,8 @@
           :key="collection.id"
           :class="['collection-chip', { active: selectedCollection === collection.id }]"
           type="button"
-          @click="selectCollection(collection.id)"
+          @click="() => handleCollectionClick(collection.id)"
+          :disabled="typesPending"
         >
           <span class="chip-ic" aria-hidden="true">{{ collection.icon }}</span>
           <span class="chip-label">{{ collection.name }}</span>
@@ -66,7 +70,7 @@
       <h2 class="products-title">Products</h2>
       <div class="products-container">
         <template v-if="pending && loadedProducts.length === 0">
-          <div v-for="n in pageSize" :key="`sk-${n}`" class="product-card skeleton" aria-hidden="true">
+          <div v-for="n in 6" :key="`sk-${n}`" class="product-card skeleton" aria-hidden="true">
             <div class="product-image">
               <div class="skeleton-block"></div>
             </div>
@@ -119,7 +123,7 @@
 
       <!-- Empty State -->
       <div v-if="!pending && error" class="empty-state" role="alert">
-        <p class="empty-title">Couldn’t load products.</p>
+        <p class="empty-title">Couldn't load products.</p>
         <p class="empty-sub">Check if your backend is running and CORS is enabled, then try again.</p>
         <button class="retry-btn" type="button" @click="refresh()">Retry</button>
       </div>
@@ -129,104 +133,91 @@
         <p class="empty-sub">Try a different search or collection.</p>
       </div>
 
-      <!-- Infinite scroll footer -->
-      <div v-if="!error && loadedProducts.length > 0" class="infinite-footer">
-        <div ref="sentinel" class="sentinel" aria-hidden="true"></div>
-
-        <div v-if="pending && loadedProducts.length > 0" class="loading-more" aria-live="polite">
-          Loading more…
-        </div>
-
-        <!-- Fallback button (in case IntersectionObserver is blocked / for accessibility) -->
-        <button
-          v-if="canLoadMore && !pending"
-          class="pager-btn primary"
-          type="button"
-          @click="loadMore"
-        >
-          Load more
-        </button>
-
-        <div v-else-if="!canLoadMore && !pending" class="end">
-          You’ve reached the end.
-        </div>
-      </div>
     </section>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, watchEffect } from 'vue'
+import { joinURL } from 'ufo'
 
 const config = useRuntimeConfig()
 const apiBase = computed(() => String(config.public.apiBase || '').replace(/\/$/, ''))
 
 const route = useRoute()
 const router = useRouter()
+const requestURL = useRequestURL()
+const cart = useCart()
 
-const selectedCollection = ref('all')
+const selectedCollection = computed(() => {
+  // For /collections (without type), always show 'all'
+  return 'all'
+})
 const query = ref('')
 
-const pageSize = ref(10)
-const page = ref(0)
+// Fetch collection types from API
+const { data: typesData, pending: typesPending } = useFetch('/collections/type', {
+  baseURL: apiBase
+})
 
-const collections = [
-  { id: 'all', name: 'All', icon: '✨' },
-  { id: 'plates', name: 'Plates', icon: '🍽️' },
-  { id: 'bowls', name: 'Bowls', icon: '🥣' },
-  { id: 'vases', name: 'Vases', icon: '🏺' },
-  { id: 'mugs', name: 'Mugs', icon: '☕' }
-]
-
-const loadedProducts = ref([])
-const totalPages = ref(null) // number | null
-const totalElements = ref(null) // number | null
-
-const clampInt = (v, fallback) => {
-  const n = Number.parseInt(String(v), 10)
-  return Number.isFinite(n) ? n : fallback
+// Map type value to icon
+const getTypeIcon = (typeName) => {
+  const name = String(typeName || '').toLowerCase()
+  if (name.includes('plate')) return '🍽️'
+  if (name.includes('bowl')) return '🥣'
+  if (name.includes('vase')) return '🏺'
+  if (name.includes('mug')) return '☕'
+  return '✨'
 }
 
-// Sync state from URL query (?page=0&size=10)
-watch(
-  () => route.query,
-  (q) => {
-    const nextPage = Math.max(0, clampInt(q.page, 0))
-    const nextSize = Math.min(50, Math.max(1, clampInt(q.size, 10)))
-
-    const prevPage = page.value
-    const prevSize = pageSize.value
-
-    const changed = nextPage !== prevPage || nextSize !== prevSize
-    page.value = nextPage
-    pageSize.value = nextSize
-
-    // Decide whether we should replace or append the list:
-    // - size change => replace
-    // - page decreases or jumps forward by >1 => replace
-    // - page increments by exactly 1 => append (Load more)
-    if (changed) {
-      const isNext = nextPage === prevPage + 1 && nextSize === prevSize
-      const isJump = nextPage > prevPage + 1 || nextSize !== prevSize || nextPage < prevPage
-      if (isJump && !isNext) {
-        loadedProducts.value = []
+// Transform API response to collection format
+const collectionsBase = computed(() => {
+  const base = [{ id: 'all', name: 'All', icon: '✨', apiValue: null }]
+  
+  if (typesData.value && Array.isArray(typesData.value)) {
+    const types = typesData.value.map(item => {
+      const value = String(item?.value || '').trim()
+      if (!value) return null
+      
+      // Use lowercase for URL id, keep original for API
+      const id = value.toLowerCase()
+      return {
+        id,
+        name: value,
+        icon: getTypeIcon(value),
+        apiValue: value // Original value from API for API calls
       }
-      // No need to call refresh(): useFetch will refetch automatically when query changes.
-    }
-  },
-  { immediate: true }
-)
+    }).filter(Boolean)
+    
+    return [...base, ...types]
+  }
+  
+  // Fallback to default if API hasn't loaded yet
+  return base
+})
+
+// Reorder collections: "All" always first, then selected one, then others
+const collections = computed(() => {
+  const selected = selectedCollection.value
+  const base = collectionsBase.value
+  if (selected === 'all') return base
+  
+  const allItem = base.find(c => c.id === 'all')
+  const selectedItem = base.find(c => c.id === selected)
+  const others = base.filter(c => c.id !== selected && c.id !== 'all')
+  
+  return selectedItem && allItem
+    ? [allItem, selectedItem, ...others]
+    : base
+})
 
 const { data, pending, error, refresh } = useFetch('/collections', {
-  baseURL: apiBase,
-  query: computed(() => ({ page: page.value, size: pageSize.value }))
+  baseURL: apiBase
 })
 
 const apiItems = computed(() => {
   const v = data.value
   if (Array.isArray(v)) return v
-  if (v && Array.isArray(v.content)) return v.content
-  if (v && Array.isArray(v.data)) return v.data
   return []
 })
 
@@ -239,8 +230,6 @@ const normalizeType = (value) =>
 const isBlockedImageHost = (url) => {
   const u = String(url || '').trim()
   if (!u) return false
-  // Block known third-party image host that sets cookies (seen in Lighthouse report).
-  // You can later replace this with your own image CDN/backend URLs.
   if (u.includes('img.icons8.com')) return true
   return false
 }
@@ -248,13 +237,10 @@ const isBlockedImageHost = (url) => {
 const mapTypeToCategory = (typeValue) => {
   const t = normalizeType(typeValue)
   if (!t) return null
-
-  // common variants: "Plates", "Plate", "Mugs", "Mug", "Bowls", "Bowl", "Vases", "Vase"
   if (t.includes('plate')) return 'plates'
   if (t.includes('bowl')) return 'bowls'
   if (t.includes('mug') || t.includes('cup')) return 'mugs'
   if (t.includes('vase')) return 'vases'
-
   return null
 }
 
@@ -291,7 +277,6 @@ const resolveImageUrl = (url) => {
 }
 
 const pickBackendImage = (p) => {
-  // Prefer p.image.value (CDN URL), otherwise prefer catalogImage from images[], else first imageUrl.
   const direct = p?.image?.value
   if (direct) return resolveImageUrl(direct)
 
@@ -323,46 +308,11 @@ const products = computed(() =>
   })
 )
 
-// Append or replace loadedProducts when a page arrives
-watch(
-  () => data.value,
-  (v) => {
-    if (!v) return
-
-    // Update meta if it's a Spring Page-like response
-    if (v && !Array.isArray(v)) {
-      if (typeof v.totalPages === 'number') totalPages.value = v.totalPages
-      if (typeof v.totalElements === 'number') totalElements.value = v.totalElements
-    } else {
-      // Unknown meta when API returns a bare array
-      totalPages.value = null
-      totalElements.value = null
-    }
-
-    // Accumulate pages (load more UX)
-    const next = products.value
-    if (page.value === 0 || loadedProducts.value.length === 0) {
-      loadedProducts.value = next
-      return
-    }
-
-    const existingIds = new Set(loadedProducts.value.map(p => p.id))
-    const merged = [...loadedProducts.value]
-    for (const p of next) {
-      if (!existingIds.has(p.id)) merged.push(p)
-    }
-    loadedProducts.value = merged
-  },
-  { immediate: true }
-)
+const loadedProducts = computed(() => products.value)
 
 const filteredProducts = computed(() => {
   const q = query.value.trim().toLowerCase()
-
   let list = loadedProducts.value
-  if (selectedCollection.value !== 'all') {
-    list = list.filter(product => product.collection === selectedCollection.value)
-  }
 
   if (!q) return list
   return list.filter(p => {
@@ -372,12 +322,22 @@ const filteredProducts = computed(() => {
 })
 
 const selectCollection = (collectionId) => {
-  selectedCollection.value = collectionId
+  if (collectionId === 'all') {
+    router.push('/collections')
+  } else {
+    router.push(`/collections/${collectionId}`)
+  }
   scrollToTop()
 }
 
+const handleCollectionClick = (collectionId) => {
+  console.log('[Collections] Button clicked! Collection ID:', collectionId)
+  console.log('[Collections] Current route:', route.path)
+  selectCollection(collectionId)
+}
+
 const collectionName = (collectionId) => {
-  const c = collections.find(x => x.id === collectionId)
+  const c = collectionsBase.value.find(x => x.id === collectionId)
   return c?.name ?? 'Collection'
 }
 
@@ -398,95 +358,142 @@ const slugify = (s) =>
   String(s || '')
     .toLowerCase()
     .trim()
-    .replace(/['"]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
     .replace(/^-+|-+$/g, '')
 
-const productUrl = (p) => {
-  const base = slugify(p?.name) || 'product'
-  const id = p?.id ?? ''
-  return `/product/${base}-${id}`
+const productUrl = (product) => {
+  const slug = slugify(product.name)
+  return `/product/${slug}-${product.id}`
 }
 
-const canLoadMore = computed(() => {
-  // If API returns totalPages, use it. Otherwise best-effort: if last fetched page filled size, assume more.
-  if (totalPages.value !== null) return page.value + 1 < totalPages.value
-  return apiItems.value.length === pageSize.value
+// --- JSON-LD for SEO ---
+const appBase = computed(() => String(config.app?.baseURL || '/'))
+const origin = computed(() => requestURL.origin)
+
+const canonicalPath = computed(() => String(route.path || '/collections'))
+const canonicalUrl = computed(() => {
+  const path = canonicalPath.value.replace(/^\//, '')
+  return joinURL(origin.value, appBase.value, path)
 })
 
-const updateQuery = async (nextPage, nextSize = pageSize.value) => {
-  await router.replace({
-    query: {
-      ...route.query,
-      page: String(nextPage),
-      size: String(nextSize)
-    }
-  })
+const absUrl = (u) => {
+  const s = String(u || '').trim()
+  if (!s) return ''
+  if (s.startsWith('http://') || s.startsWith('https://')) return s
+  const path = s.replace(/^\//, '')
+  return joinURL(origin.value, appBase.value, path)
 }
 
-// Infinite scroll trigger
-const sentinel = ref(null)
-const autoLoadLock = ref(false)
-let io = null
+// Generate CollectionPage and ItemList JSON-LD (simplified - Google best practice)
+const collectionJsonLd = computed(() => {
+  const collectionName = 'All Collections'
+  const description = 'Discover our complete collection of handcrafted ceramic products including plates, bowls, mugs, and vases. Each piece is carefully crafted by skilled artisans.'
 
-const maybeAutoLoad = async () => {
-  if (autoLoadLock.value) return
-  if (pending.value) return
-  if (!canLoadMore.value) return
-
-  autoLoadLock.value = true
-  try {
-    await loadMore()
-  } finally {
-    // Give the UI a moment; prevents rapid-fire triggers on short lists.
-    setTimeout(() => {
-      autoLoadLock.value = false
-    }, 250)
+  // Calculate offer price for each product
+  const getOfferPrice = (p) => {
+    const discountPercent = p.discountPercent || 0
+    const listPrice = Number(p.price || 0)
+    return discountPercent > 0 
+      ? Math.round((listPrice * (100 - discountPercent)) / 100)
+      : listPrice
   }
-}
 
-const loadMore = async () => {
-  if (!canLoadMore.value || pending.value) return
-  await updateQuery(page.value + 1)
-}
+  // Base website URL (update with your actual domain)
+  const websiteUrl = joinURL(origin.value, appBase.value).replace(/\/$/, '')
+  const organizationId = `${websiteUrl}#organization`
+  const websiteId = `${websiteUrl}#website`
 
-onMounted(() => {
-  if (!process.client) return
-  if (!('IntersectionObserver' in window)) return
-
-  io = new IntersectionObserver(
-    (entries) => {
-      const hit = entries.some((e) => e.isIntersecting)
-      if (hit) maybeAutoLoad()
+  const graph = [
+    {
+      '@type': 'Organization',
+      '@id': organizationId,
+      name: 'Ceramic Artistry',
+      url: websiteUrl,
+      logo: absUrl('/images/ceramic-plate.svg') // Update with your actual logo URL
     },
     {
-      // start loading before the user hits the exact bottom
-      root: null,
-      rootMargin: '600px 0px',
-      threshold: 0.01
+      '@type': 'WebSite',
+      '@id': websiteId,
+      url: websiteUrl,
+      name: 'Ceramic Artistry',
+      publisher: {
+        '@id': organizationId
+      }
+    },
+    {
+      '@type': 'CollectionPage',
+      '@id': `${canonicalUrl.value}#webpage`,
+      url: canonicalUrl.value,
+      name: `${collectionName} - Ceramic Artistry`,
+      description,
+      mainEntity: {
+        '@id': `${canonicalUrl.value}#itemlist`
+      }
+    },
+    {
+      '@type': 'ItemList',
+      '@id': `${canonicalUrl.value}#itemlist`,
+      name: `${collectionName} Products`,
+      description,
+      numberOfItems: loadedProducts.value.length,
+      itemListElement: loadedProducts.value.map((p, index) => {
+        const productUrlFull = absUrl(productUrl(p))
+        const images = [p.image].filter(Boolean).map(absUrl).filter(Boolean)
+        const offerPrice = getOfferPrice(p)
+        
+        // Simplified product info (Google best practice for collection pages)
+        return {
+          '@type': 'ListItem',
+          position: index + 1,
+          item: {
+            '@type': 'Product',
+            '@id': productUrlFull,
+            name: p.name,
+            url: productUrlFull,
+            mainEntityOfPage: {
+              '@type': 'WebPage',
+              '@id': productUrlFull
+            },
+            ...(images.length ? { image: images[0] } : {}),
+            offers: {
+              '@type': 'Offer',
+              priceCurrency: 'INR',
+              price: String(offerPrice),
+              availability: 'https://schema.org/InStock'
+            }
+          }
+        }
+      })
     }
-  )
+  ]
 
-  if (sentinel.value) io.observe(sentinel.value)
-})
-
-watch(sentinel, (el, prev) => {
-  if (!process.client) return
-  if (!io) return
-  if (prev) io.unobserve(prev)
-  if (el) io.observe(el)
-})
-
-watch(canLoadMore, (v) => {
-  if (!io) return
-  if (!v && sentinel.value) {
-    io.unobserve(sentinel.value)
+  return {
+    '@context': 'https://schema.org',
+    '@graph': graph
   }
 })
 
-onBeforeUnmount(() => {
-  if (io) io.disconnect()
-  io = null
+// Inject JSON-LD into head
+watchEffect(() => {
+  if (!collectionJsonLd.value || loadedProducts.value.length === 0) return
+  
+  useHead({
+    script: [
+      {
+        key: 'ld-collection',
+        type: 'application/ld+json',
+        children: JSON.stringify(collectionJsonLd.value)
+      }
+    ],
+    link: [
+      {
+        key: 'canonical-collection',
+        rel: 'canonical',
+        href: canonicalUrl.value
+      }
+    ]
+  })
 })
 </script>
 
@@ -543,6 +550,44 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
+.cart-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text-dark);
+  border-radius: 12px;
+  font-size: 1.25rem;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.cart-link:hover {
+  background: rgba(255, 255, 255, 1);
+}
+
+.cart-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #d32f2f;
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+}
+
 .icon-btn {
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: rgba(255, 255, 255, 0.9);
@@ -554,80 +599,71 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.icon-btn:active {
-  transform: scale(0.96);
-}
-
 /* Hero */
 .hero {
-  padding: 16px 14px 10px;
-  background: radial-gradient(1200px 280px at 20% 0%, rgba(244, 164, 96, 0.28), transparent 55%),
-    radial-gradient(1000px 260px at 100% 0%, rgba(139, 69, 19, 0.18), transparent 50%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(250, 250, 250, 0));
+  padding: 20px 14px 16px;
+  text-align: center;
 }
 
 .hero-inner {
-  max-width: 900px;
+  max-width: 720px;
   margin: 0 auto;
 }
 
 .hero-title {
-  font-size: 1.6rem;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  margin: 6px 0 6px;
+  font-size: 1.85rem;
+  font-weight: 1000;
+  color: var(--text-dark);
+  margin: 0 0 8px;
+  letter-spacing: -0.03em;
 }
 
 .hero-subtitle {
-  margin: 0;
-  color: var(--text-muted);
   font-size: 0.95rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
 }
 
-/* Sticky controls */
+/* Controls */
 .controls {
-  background: rgba(250, 250, 250, 0.95);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 12px 14px 10px;
   position: sticky;
   top: 56px;
   z-index: 130;
-  backdrop-filter: blur(12px);
+  background: rgba(250, 250, 250, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 12px 14px;
 }
 
 .search-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .search {
-  position: relative;
   flex: 1;
+  position: relative;
   display: flex;
   align-items: center;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 14px;
-  height: 44px;
-  padding: 0 40px 0 40px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
 }
 
 .search-ic {
   position: absolute;
-  left: 14px;
-  font-size: 1.05rem;
-  opacity: 0.75;
+  left: 12px;
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  pointer-events: none;
 }
 
 .search-input {
   width: 100%;
-  height: 100%;
-  border: none;
-  outline: none;
-  background: transparent;
+  padding: 12px 40px 12px 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.92);
   font-size: 0.95rem;
   color: var(--text-dark);
 }
@@ -657,11 +693,6 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-.count-muted {
-  color: var(--text-muted-2);
-  font-weight: 800;
-}
-
 .collections-container {
   display: flex;
   gap: 10px;
@@ -688,6 +719,8 @@ onBeforeUnmount(() => {
   font-size: 0.9rem;
   font-weight: 800;
   cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.2s ease;
 }
 
 .collection-chip.active {
@@ -882,49 +915,6 @@ onBeforeUnmount(() => {
   transform: scale(0.98);
 }
 
-/* Infinite footer */
-.infinite-footer {
-  max-width: 720px;
-  margin: 14px auto 0;
-  display: grid;
-  gap: 10px;
-  align-items: center;
-  padding: 0 2px;
-}
-
-.sentinel {
-  height: 1px;
-}
-
-.loading-more,
-.end {
-  text-align: center;
-  font-size: 0.95rem;
-  font-weight: 900;
-  color: var(--text-muted);
-}
-
-.pager-btn {
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 999px;
-  padding: 12px 14px;
-  font-weight: 900;
-  cursor: pointer;
-  color: rgba(44, 62, 80, 0.92);
-}
-
-.pager-btn.primary {
-  border: none;
-  color: #fff;
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-}
-
-.pager-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
 /* Skeleton */
 .skeleton {
   cursor: default;
@@ -980,10 +970,6 @@ onBeforeUnmount(() => {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     max-width: 1100px;
     gap: 14px;
-  }
-
-  .infinite-footer {
-    max-width: 1100px;
   }
 
   .controls {
