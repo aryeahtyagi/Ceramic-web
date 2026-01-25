@@ -25,9 +25,14 @@ jobs:
         run: |
           rm -rf node_modules package-lock.json
           npm cache clean --force
+          # Install with legacy peer deps and ensure optional deps are included
           npm install --legacy-peer-deps
-          # Force install oxc-parser native bindings
-          npm install @oxc-parser/binding-linux-x64-gnu --no-save --legacy-peer-deps || npm install oxc-parser --legacy-peer-deps --force
+          # Explicitly install the native binding that oxc-parser needs
+          cd node_modules/oxc-parser || true
+          npm install --legacy-peer-deps --no-save @oxc-parser/binding-linux-x64-gnu 2>/dev/null || true
+          cd ../..
+          # Try installing it at root level as well
+          npm install --no-save --legacy-peer-deps @oxc-parser/binding-linux-x64-gnu || true
 
       - name: Generate
         run: npm run generate
