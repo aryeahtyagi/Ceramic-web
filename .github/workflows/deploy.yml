@@ -19,12 +19,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install dependencies
         run: |
           rm -rf node_modules package-lock.json
+          npm cache clean --force
           npm install --legacy-peer-deps
+          # Force install oxc-parser native bindings
+          npm install @oxc-parser/binding-linux-x64-gnu --no-save --legacy-peer-deps || npm install oxc-parser --legacy-peer-deps --force
 
       - name: Generate
         run: npm run generate
