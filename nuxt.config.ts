@@ -12,7 +12,7 @@ export default defineNuxtConfig({
 
   // GitHub Pages configuration
   app: {
-    baseURL: process.env.NODE_ENV === 'production' ? '/Ceramic-web/' : '/',
+    baseURL: '/',
     head: {
       htmlAttrs: {
         lang: 'en'
