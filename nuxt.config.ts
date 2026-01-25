@@ -59,5 +59,16 @@ export default defineNuxtConfig({
   // Performance optimizations
   experimental: {
     payloadExtraction: false
+  },
+
+  // Vite dev server configuration for network access
+  vite: {
+    server: {
+      host: '0.0.0.0',
+      port: 3000,
+      hmr: {
+        clientPort: 3000
+      }
+    }
   }
 })
