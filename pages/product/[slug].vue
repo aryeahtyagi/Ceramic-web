@@ -139,11 +139,6 @@
         <!-- Product Info -->
         <div class="info">
           <div class="product-header">
-            <button class="wishlist-btn" type="button" aria-label="Add to wishlist">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-              </svg>
-            </button>
             <span class="handmade-tag">HANDMADE</span>
           </div>
 
@@ -1512,30 +1507,6 @@ watchEffect(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
-}
-
-.wishlist-btn {
-  background: none;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  width: 40px;
-  height: 40px;
-  border-radius: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.wishlist-btn svg {
-  width: 20px;
-  height: 20px;
-  stroke: #333;
-  fill: none;
-}
-
-.wishlist-btn:hover {
-  border-color: #d32f2f;
 }
 
 .handmade-tag {
