@@ -176,8 +176,9 @@ const collectionsBase = computed(() => {
       const value = String(item?.value || '').trim()
       if (!value) return null
       
-      // Use lowercase for URL id, keep original for API
-      const id = value.toLowerCase()
+      // Use lowercase with hyphens for URL id (better URL compatibility)
+      // Keep original for API calls
+      const id = value.toLowerCase().replace(/\s+/g, '-')
       return {
         id,
         name: value,
@@ -198,13 +199,33 @@ const collections = computed(() => {
   return collectionsBase.value
 })
 
-// Map route type to API type (plural forms)
-const mapTypeToApiType = (type) => {
+// Get API type from collections data (handles dynamic types like "Coffee Mugs")
+const getApiType = (type) => {
+  if (!type || type === 'all') return null
+  
+  // Normalize the type for comparison (handle both spaces and hyphens)
+  const normalizedType = String(type || '').toLowerCase().replace(/[-\s]+/g, ' ')
+  
+  // Find the collection by route type (id) - normalize both for comparison
+  const collection = collectionsBase.value.find(c => {
+    const normalizedId = String(c.id || '').toLowerCase().replace(/[-\s]+/g, ' ')
+    return normalizedId === normalizedType
+  })
+  
+  if (collection && collection.apiValue) {
+    // Use the apiValue directly from the collection
+    // Convert to lowercase and replace spaces with hyphens for URL
+    const apiValue = String(collection.apiValue).trim()
+    return apiValue.toLowerCase().replace(/\s+/g, '-')
+  }
+  
+  // Fallback: try to map common types (for backwards compatibility)
   const t = String(type || '').toLowerCase()
-  if (t === 'mug' || t === 'mugs') return 'mugs'
-  if (t === 'vase' || t === 'vases') return 'vases'
-  if (t === 'bowl' || t === 'bowls') return 'bowls'
-  if (t === 'plate' || t === 'plates') return 'plates'
+  if (t === 'mug' || t === 'mugs' || t.includes('mug')) return 'mugs'
+  if (t === 'vase' || t === 'vases' || t.includes('vase')) return 'vases'
+  if (t === 'bowl' || t === 'bowls' || t.includes('bowl')) return 'bowls'
+  if (t === 'plate' || t === 'plates' || t.includes('plate')) return 'plates'
+  
   return null
 }
 
@@ -215,7 +236,7 @@ const loadedProducts = ref([])
 
 const fetchData = async () => {
   const type = currentType.value
-  const apiType = mapTypeToApiType(type)
+  const apiType = getApiType(type)
   
   let endpoint = '/collections'
   if (type && type !== 'all' && apiType) {
@@ -227,6 +248,7 @@ const fetchData = async () => {
   
   try {
     const url = `${apiBase.value}${endpoint}`
+    console.log('[Collections Type] Fetching from:', url)
     const response = await $fetch(url, {
       method: 'GET',
       headers: { accept: '*/*' }
