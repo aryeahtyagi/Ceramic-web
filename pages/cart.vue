@@ -42,9 +42,7 @@
       <!-- Error State -->
       <section v-else-if="error" class="error">
         <h1 class="error-title">Couldn't load cart</h1>
-        <p class="error-sub">
-          {{ errorMessage }}
-        </p>
+        <p class="error-sub">{{ errorMessage }}</p>
         <button class="retry" type="button" @click="loadCart">Retry</button>
       </section>
 
@@ -64,29 +62,25 @@
             :key="item.cartId"
             class="cart-item"
           >
-            <NuxtLink :to="productUrl(item.product)" class="item-image-wrapper">
+            <NuxtLink :to="productUrl(item.product)" class="item-image">
               <img
                 :src="getProductImage(item.product)"
                 :alt="item.product.name"
-                class="item-image"
                 loading="lazy"
               />
-              <span v-if="hasDiscount(item.product)" class="discount-badge-overlay">
+              <span v-if="hasDiscount(item.product)" class="discount-badge">
                 {{ item.product.discounts.discount }}% OFF
               </span>
             </NuxtLink>
 
-            <div class="item-content">
-              <div class="item-header">
-                <NuxtLink :to="productUrl(item.product)" class="item-name">
-                  {{ item.product.name }}
-                </NuxtLink>
-                <div class="item-price">Rs. {{ formatPrice(getFinalPrice(item.product)) }}</div>
-              </div>
+            <div class="item-details">
+              <NuxtLink :to="productUrl(item.product)" class="item-name">
+                {{ item.product.name }}
+              </NuxtLink>
               
-              <div class="item-quantity-badge">QTY: {{ item.quantity }}</div>
+              <div class="item-qty-badge">QTY: {{ item.quantity }}</div>
               
-              <div class="item-controls">
+              <div class="item-row">
                 <div class="quantity-controls">
                   <button
                     type="button"
@@ -106,16 +100,18 @@
                     +
                   </button>
                 </div>
-                <button
-                  type="button"
-                  class="remove-btn"
-                  :disabled="updatingItems.has(item.cartId)"
-                  @click="removeItem(item)"
-                >
-                  <span class="remove-icon">🗑️</span>
-                  <span>Remove</span>
-                </button>
+                <div class="item-price">Rs. {{ formatPrice(getFinalPrice(item.product)) }}</div>
               </div>
+              
+              <button
+                type="button"
+                class="remove-btn"
+                :disabled="updatingItems.has(item.cartId)"
+                @click="removeItem(item)"
+              >
+                <span class="remove-icon">🗑️</span>
+                <span>Remove</span>
+              </button>
             </div>
           </div>
         </div>
@@ -219,8 +215,6 @@ const loadCart = async () => {
     })
 
     cartData.value = response
-    
-    // Sync local cart state with backend data
     syncLocalCartState(response)
   } catch (err) {
     console.error('[Cart] Failed to load cart:', err)
@@ -284,7 +278,6 @@ const slugify = (text) => {
 // Sync local cart state with backend cart data
 const syncLocalCartState = (backendData) => {
   if (!backendData?.cart || !backendData?.ceremics) {
-    // Clear local cart if backend cart is empty
     cart.items.value = []
     return
   }
@@ -292,13 +285,11 @@ const syncLocalCartState = (backendData) => {
   const cartItems = backendData.cart
   const products = backendData.ceremics
 
-  // Map backend cart items to local cart format
   const localItems = cartItems
     .map(cartItem => {
       const product = products.find(p => p.id === cartItem.productId)
       if (!product || cartItem.quantity <= 0) return null
 
-      // Get product image
       let productImage = ''
       if (product.images && product.images.length > 0) {
         const catalogImg = product.images.find(img => img.catalogImage)
@@ -309,7 +300,6 @@ const syncLocalCartState = (backendData) => {
         productImage = product.image.value
       }
 
-      // Generate product slug
       const slug = slugify(product.name)
 
       return {
@@ -323,7 +313,6 @@ const syncLocalCartState = (backendData) => {
     })
     .filter(Boolean)
 
-  // Update local cart state
   cart.items.value = localItems
 }
 
@@ -349,24 +338,19 @@ const getFinalPrice = (product) => {
 }
 
 const getProductImage = (product) => {
-  // Try catalog image first, then first image, then fallback
   if (product.images && product.images.length > 0) {
     const catalogImg = product.images.find(img => img.catalogImage)
     if (catalogImg?.imageUrl) return catalogImg.imageUrl
-    
     if (product.images[0]?.imageUrl) return product.images[0].imageUrl
   }
   
-  // Try main image
   if (product.image?.value) {
-    // Block third-party cookies
     if (product.image.value.includes('img.icons8.com')) {
       return '/images/ceramic-plate.svg'
     }
     return product.image.value
   }
   
-  // Fallback to placeholder based on type
   const type = product.productDetails?.find(d => d.dimension?.name === 'Type')?.value?.toLowerCase() || 'plate'
   if (type.includes('mug')) return '/images/ceramic-mug.svg'
   if (type.includes('bowl')) return '/images/ceramic-bowl.svg'
@@ -408,7 +392,7 @@ const increaseQuantity = async (item) => {
     const newQty = item.quantity + 1
     const success = await syncCartItem(item.productId, newQty)
     if (success) {
-      await loadCart() // Reload cart to get updated data
+      await loadCart()
     } else {
       showToast('Failed to update quantity. Please try again.')
     }
@@ -425,7 +409,7 @@ const decreaseQuantity = async (item) => {
     const newQty = item.quantity - 1
     const success = await syncCartItem(item.productId, newQty)
     if (success) {
-      await loadCart() // Reload cart to get updated data
+      await loadCart()
     } else {
       showToast('Failed to update quantity. Please try again.')
     }
@@ -441,7 +425,7 @@ const removeItem = async (item) => {
   try {
     const success = await syncCartItem(item.productId, 0)
     if (success) {
-      await loadCart() // Reload cart to get updated data
+      await loadCart()
       showToast('Item removed from cart')
     } else {
       showToast('Failed to remove item. Please try again.')
@@ -481,38 +465,25 @@ const handleCheckout = async () => {
 
     const url = `${apiBase}/user/order?${params.toString()}`
     
-    const response = await $fetch(url, {
+    await $fetch(url, {
       method: 'POST',
       headers: { accept: '*/*' }
     })
 
-    // Check if order was successful (status 200-299 means success)
-    // Since response is empty, we rely on no exception being thrown
     console.log('[Cart] Order placed successfully')
-    
-    // Clear the cart after successful order
     await cart.clear()
-    
-    // Reload cart data to reflect empty cart
     await loadCart()
-    
-    // Redirect to purchased page
     router.push('/purchased')
     
   } catch (err) {
     console.error('[Cart] Failed to place order:', err)
-    
-    // Check HTTP status code
     const statusCode = err?.statusCode || err?.status || err?.response?.status
     
     if (statusCode >= 400 && statusCode < 500) {
-      // Client error (4xx)
       showToast('Failed to place order. Please check your information and try again.')
     } else if (statusCode >= 500) {
-      // Server error (5xx)
       showToast('Server error. Please try again later.')
     } else {
-      // Network or other error
       showToast('Failed to place order. Please check your connection and try again.')
     }
   } finally {
@@ -526,7 +497,7 @@ const showToast = (msg) => {
   if (toastTimer) clearTimeout(toastTimer)
   toastTimer = setTimeout(() => {
     toast.value = ''
-  }, 2000)
+  }, 3000)
 }
 
 // Load cart on mount
@@ -536,23 +507,10 @@ onMounted(() => {
   }
 })
 
-// Watch for auth changes
-watch(() => auth.isAuthenticated.value, (isAuth) => {
-  if (isAuth) {
-    loadCart()
-  } else {
-    cartData.value = null
-  }
-})
-
-// SEO - Make page non-indexable
+// SEO
 useHead({
   title: 'Shopping Cart - Ceramic Artistry',
   meta: [
-    {
-      name: 'description',
-      content: 'Review your selected ceramic products and proceed to checkout.'
-    },
     {
       name: 'robots',
       content: 'noindex, nofollow'
@@ -583,13 +541,18 @@ useHead({
   font-family: 'Georgia', 'Times New Roman', serif;
   font-style: italic;
   letter-spacing: 0.05em;
+  text-transform: none;
+}
+
+.banner-text::first-letter {
+  text-transform: capitalize;
 }
 
 /* Header */
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 140;
+  z-index: 150;
   height: 56px;
   display: flex;
   align-items: center;
@@ -677,9 +640,11 @@ useHead({
 }
 
 .content {
+  padding: 16px;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px 20px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Loading State */
@@ -689,13 +654,13 @@ useHead({
 }
 
 .loading-spinner {
-  width: 48px;
-  height: 48px;
-  margin: 0 auto 1rem;
-  border: 3px solid #e5e5e5;
-  border-top-color: #333;
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #333;
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
 }
 
 @keyframes spin {
@@ -808,6 +773,8 @@ useHead({
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .cart-item {
@@ -817,25 +784,30 @@ useHead({
   border: 1px solid rgba(0, 0, 0, 0.06);
   background: #fff;
   width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-.item-image-wrapper {
-  width: 190px;
-  height: 190px;
+.item-image {
+  width: 95px;
+  min-width: 95px;
+  height: 95px;
   flex-shrink: 0;
   border-radius: 8px;
   overflow: hidden;
   background: #f8f8f8;
   position: relative;
+  display: block;
+  text-decoration: none;
 }
 
-.item-image {
+.item-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.discount-badge-overlay {
+.discount-badge {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -848,18 +820,14 @@ useHead({
   z-index: 1;
 }
 
-.item-content {
+.item-details {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
+  min-width: 0;
+  max-width: calc(100% - 95px - 16px);
+  overflow: hidden;
 }
 
 .item-name {
@@ -868,24 +836,16 @@ useHead({
   color: #2c2c2c;
   text-decoration: none;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  flex: 1;
-  min-width: 0;
+  display: block;
   word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .item-name:hover {
   color: #000;
 }
 
-.item-price {
-  font-size: 0.9375rem;
-  font-weight: 400;
-  color: #2c2c2c;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  white-space: nowrap;
-}
-
-.item-quantity-badge {
+.item-qty-badge {
   font-size: 0.75rem;
   color: #666;
   background: #f5f5f5;
@@ -897,10 +857,13 @@ useHead({
   width: fit-content;
 }
 
-.item-controls {
-  display: flex;
+.item-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
   align-items: center;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 .quantity-controls {
@@ -909,10 +872,9 @@ useHead({
   gap: 0;
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 0;
-  padding: 0;
   background: #fff;
   flex-shrink: 0;
-  max-width: fit-content;
+  min-width: fit-content;
 }
 
 .qty-btn {
@@ -924,26 +886,20 @@ useHead({
   font-size: 1.25rem;
   font-weight: 400;
   cursor: pointer;
-  border-radius: 0;
-  transition: background 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
-  line-height: 1;
+  transition: background 0.2s;
+  flex-shrink: 0;
 }
 
 .qty-btn:hover:not(:disabled) {
   background: #fafafa;
 }
 
-.qty-btn:active:not(:disabled) {
-  background: #f5f5f5;
-}
-
 .qty-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
-  background: #f5f5f5;
 }
 
 .qty-value {
@@ -952,34 +908,72 @@ useHead({
   font-weight: 700;
   color: #1a1a1a;
   font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.item-price {
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: #2c2c2c;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  white-space: nowrap;
+  text-align: right;
+  justify-self: end;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .remove-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  background: #fff;
+  gap: 6px;
+  padding: 8px 12px;
   border: 1px solid rgba(0, 0, 0, 0.12);
-  color: #2c2c2c;
-  font-size: 0.875rem;
-  font-weight: 400;
-  cursor: pointer;
-  padding: 0.625rem 1rem;
-  border-radius: 0;
-  transition: border-color 0.2s;
+  background: #fff;
+  color: #333;
+  font-size: 0.8125rem;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background 0.2s;
+  align-self: flex-start;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  flex-shrink: 0;
-  white-space: nowrap;
-  max-width: fit-content;
+  width: fit-content;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 640px) {
+  .cart-item {
+    flex-wrap: wrap;
+  }
+  
+  .item-image {
+    width: 100%;
+    min-width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+  
+  .item-details {
+    max-width: 100%;
+    width: 100%;
+  }
+  
+  .item-row {
+    flex-wrap: wrap;
+  }
+  
+  .item-price {
+    width: 100%;
+    text-align: left;
+    margin-top: 8px;
+  }
 }
 
 .remove-btn:hover:not(:disabled) {
-  border-color: rgba(0, 0, 0, 0.2);
-}
-
-.remove-btn:active:not(:disabled) {
   background: #fafafa;
 }
 
@@ -988,26 +982,20 @@ useHead({
   cursor: not-allowed;
 }
 
-.remove-icon {
-  font-size: 1rem;
-  line-height: 1;
-}
-
 /* Order Summary */
 .order-summary {
   background: #fff;
-  border-radius: 0;
-  padding: 24px;
   border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 20px;
 }
 
 .summary-title {
-  font-size: 0.9375rem;
-  font-weight: 400;
+  font-size: 1rem;
+  font-weight: 600;
   color: #2c2c2c;
-  margin-bottom: 20px;
+  margin: 0 0 16px;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.05em;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
@@ -1021,56 +1009,51 @@ useHead({
 .summary-label {
   font-size: 0.9375rem;
   color: #666;
-  font-weight: 400;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
 .summary-value {
   font-size: 0.9375rem;
-  font-weight: 400;
   color: #2c2c2c;
+  font-weight: 400;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
-.discount-row .summary-value {
-  color: #d32f2f;
+.discount-value {
+  color: #4caf50;
+}
+
+.total-row {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.total-value {
+  font-weight: 600;
+  font-size: 1rem;
 }
 
 .summary-divider {
   height: 1px;
-  background: #e5e5e5;
-  margin: 1rem 0;
-}
-
-.total-row {
-  margin-bottom: 1.5rem;
-}
-
-.total-row .summary-label {
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: #2c2c2c;
-}
-
-.total-value {
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: #2c2c2c;
+  background: rgba(0, 0, 0, 0.06);
+  margin: 12px 0;
 }
 
 .checkout-btn {
   width: 100%;
+  padding: 14px;
   background: #2c2c2c;
   color: #fff;
   border: none;
-  padding: 16px;
-  border-radius: 0;
   font-size: 0.875rem;
-  font-weight: 400;
-  cursor: pointer;
-  transition: background 0.2s;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background 0.2s;
+  margin-top: 16px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
@@ -1086,17 +1069,16 @@ useHead({
 /* Toast */
 .toast {
   position: fixed;
-  bottom: 2rem;
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  background: #333;
+  background: rgba(44, 44, 44, 0.9);
   color: #fff;
-  padding: 0.875rem 1.5rem;
+  padding: 12px 20px;
   border-radius: 8px;
-  font-size: 0.9375rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-size: 0.875rem;
   z-index: 1000;
-  pointer-events: none;
+  max-width: 90%;
 }
 
 .toast-enter-active,
@@ -1107,6 +1089,6 @@ useHead({
 .toast-enter-from,
 .toast-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(1rem);
+  transform: translateX(-50%) translateY(20px);
 }
 </style>
