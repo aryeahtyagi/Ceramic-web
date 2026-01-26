@@ -1,30 +1,36 @@
 <template>
   <div class="collection-page">
-    <!-- Mobile Top Bar -->
-    <header class="topbar">
-      <NuxtLink to="/" class="brand">
-        <span class="brand-mark" aria-hidden="true">🏺</span>
-        <span class="brand-text">Ceramic Artistry</span>
-      </NuxtLink>
+    <!-- Top Banner -->
+    <div class="top-banner">
+      <p class="banner-text">Designed to impress, Made to use</p>
+    </div>
 
+    <!-- Header -->
+    <header class="topbar">
+      <button class="menu-btn" type="button" aria-label="Menu" @click="menuOpen = true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12h18M3 6h18M3 18h18"/>
+        </svg>
+      </button>
+      <NuxtLink to="/" class="brand-logo">
+        <span class="logo-text">SVRVE</span>
+        <span class="logo-dot">•</span>
+      </NuxtLink>
       <div class="topbar-actions">
-        <NuxtLink to="/cart" class="cart-link" aria-label="Shopping cart">
-          🛒
+        <button class="cart-btn" type="button" @click="router.push('/cart')" aria-label="Cart">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
           <span v-if="cart.totalQty.value" class="cart-badge" aria-label="Cart items">{{ cart.totalQty.value }}</span>
-        </NuxtLink>
-        <button class="icon-btn" type="button" aria-label="Scroll to top" @click="scrollToTop">
-          ↑
         </button>
+        <AccountDropdown />
       </div>
     </header>
 
-    <!-- Hero -->
-    <section class="hero">
-      <div class="hero-inner">
-        <h1 class="hero-title">Collections</h1>
-        <p class="hero-subtitle">Pick a collection, search, and start browsing.</p>
-      </div>
-    </section>
+    <!-- Hamburger Menu -->
+    <HamburgerMenu :is-open="menuOpen" @close="menuOpen = false" />
 
     <!-- Sticky Controls (search + chips) -->
     <section class="controls">
@@ -57,9 +63,7 @@
           :class="['collection-chip', { active: selectedCollection === collection.id }]"
           type="button"
           @click="() => handleCollectionClick(collection.id)"
-          :disabled="typesPending"
         >
-          <span class="chip-ic" aria-hidden="true">{{ collection.icon }}</span>
           <span class="chip-label">{{ collection.name }}</span>
         </button>
       </div>
@@ -105,17 +109,11 @@
                 referrerpolicy="no-referrer"
                 crossorigin="anonymous"
               />
-              <span class="badge">{{ collectionName(product.collection) }}</span>
               <span v-if="product.discountPercent" class="discount-badge">{{ product.discountPercent }}% OFF</span>
             </div>
             <div class="product-info">
               <h3 class="product-name">{{ product.name }}</h3>
-              <p class="product-description">{{ product.description }}</p>
-
-              <div class="product-footer">
-                <span class="product-price">{{ formatPrice(product.price) }}</span>
-                <span class="view-pill" aria-hidden="true">View</span>
-              </div>
+              <div class="product-price">Rs. {{ formatPrice(product.price) }}</div>
             </div>
           </NuxtLink>
         </template>
@@ -138,16 +136,17 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, watchEffect } from 'vue'
-import { joinURL } from 'ufo'
+import { ref, computed, watch } from 'vue'
 
 const config = useRuntimeConfig()
 const apiBase = computed(() => String(config.public.apiBase || '').replace(/\/$/, ''))
 
 const route = useRoute()
 const router = useRouter()
-const requestURL = useRequestURL()
 const cart = useCart()
+
+// --- Menu ---
+const menuOpen = ref(false)
 
 const selectedCollection = computed(() => {
   // For /collections (without type), always show 'all'
@@ -155,61 +154,13 @@ const selectedCollection = computed(() => {
 })
 const query = ref('')
 
-// Fetch collection types from API
-const { data: typesData, pending: typesPending } = useFetch('/collections/type', {
-  baseURL: apiBase
-})
-
-// Map type value to icon
-const getTypeIcon = (typeName) => {
-  const name = String(typeName || '').toLowerCase()
-  if (name.includes('plate')) return '🍽️'
-  if (name.includes('bowl')) return '🥣'
-  if (name.includes('vase')) return '🏺'
-  if (name.includes('mug')) return '☕'
-  return '✨'
-}
-
-// Transform API response to collection format
-const collectionsBase = computed(() => {
-  const base = [{ id: 'all', name: 'All', icon: '✨', apiValue: null }]
-  
-  if (typesData.value && Array.isArray(typesData.value)) {
-    const types = typesData.value.map(item => {
-      const value = String(item?.value || '').trim()
-      if (!value) return null
-      
-      // Use lowercase for URL id, keep original for API
-      const id = value.toLowerCase()
-      return {
-        id,
-        name: value,
-        icon: getTypeIcon(value),
-        apiValue: value // Original value from API for API calls
-      }
-    }).filter(Boolean)
-    
-    return [...base, ...types]
-  }
-  
-  // Fallback to default if API hasn't loaded yet
-  return base
-})
-
-// Reorder collections: "All" always first, then selected one, then others
-const collections = computed(() => {
-  const selected = selectedCollection.value
-  const base = collectionsBase.value
-  if (selected === 'all') return base
-  
-  const allItem = base.find(c => c.id === 'all')
-  const selectedItem = base.find(c => c.id === selected)
-  const others = base.filter(c => c.id !== selected && c.id !== 'all')
-  
-  return selectedItem && allItem
-    ? [allItem, selectedItem, ...others]
-    : base
-})
+const collections = [
+  { id: 'all', name: 'All', icon: '✨' },
+  { id: 'plates', name: 'Plates', icon: '🍽️' },
+  { id: 'bowls', name: 'Bowls', icon: '🥣' },
+  { id: 'vases', name: 'Vases', icon: '🏺' },
+  { id: 'mugs', name: 'Mugs', icon: '☕' }
+]
 
 const { data, pending, error, refresh } = useFetch('/collections', {
   baseURL: apiBase
@@ -327,7 +278,6 @@ const selectCollection = (collectionId) => {
   } else {
     router.push(`/collections/${collectionId}`)
   }
-  scrollToTop()
 }
 
 const handleCollectionClick = (collectionId) => {
@@ -337,22 +287,19 @@ const handleCollectionClick = (collectionId) => {
 }
 
 const collectionName = (collectionId) => {
-  const c = collectionsBase.value.find(x => x.id === collectionId)
+  const c = collections.find(x => x.id === collectionId)
   return c?.name ?? 'Collection'
 }
 
 const formatPrice = (price) => {
   const n = Number(price || 0)
   try {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
+    return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n)
   } catch {
-    return `₹${n}`
+    return String(n)
   }
 }
 
-const scrollToTop = () => {
-  if (process.client) window.scrollTo({ top: 0, behavior: 'smooth' })
-}
 
 const slugify = (s) =>
   String(s || '')
@@ -366,135 +313,6 @@ const productUrl = (product) => {
   const slug = slugify(product.name)
   return `/product/${slug}-${product.id}`
 }
-
-// --- JSON-LD for SEO ---
-const appBase = computed(() => String(config.app?.baseURL || '/'))
-const origin = computed(() => requestURL.origin)
-
-const canonicalPath = computed(() => String(route.path || '/collections'))
-const canonicalUrl = computed(() => {
-  const path = canonicalPath.value.replace(/^\//, '')
-  return joinURL(origin.value, appBase.value, path)
-})
-
-const absUrl = (u) => {
-  const s = String(u || '').trim()
-  if (!s) return ''
-  if (s.startsWith('http://') || s.startsWith('https://')) return s
-  const path = s.replace(/^\//, '')
-  return joinURL(origin.value, appBase.value, path)
-}
-
-// Generate CollectionPage and ItemList JSON-LD (simplified - Google best practice)
-const collectionJsonLd = computed(() => {
-  const collectionName = 'All Collections'
-  const description = 'Discover our complete collection of handcrafted ceramic products including plates, bowls, mugs, and vases. Each piece is carefully crafted by skilled artisans.'
-
-  // Calculate offer price for each product
-  const getOfferPrice = (p) => {
-    const discountPercent = p.discountPercent || 0
-    const listPrice = Number(p.price || 0)
-    return discountPercent > 0 
-      ? Math.round((listPrice * (100 - discountPercent)) / 100)
-      : listPrice
-  }
-
-  // Base website URL (update with your actual domain)
-  const websiteUrl = joinURL(origin.value, appBase.value).replace(/\/$/, '')
-  const organizationId = `${websiteUrl}#organization`
-  const websiteId = `${websiteUrl}#website`
-
-  const graph = [
-    {
-      '@type': 'Organization',
-      '@id': organizationId,
-      name: 'Ceramic Artistry',
-      url: websiteUrl,
-      logo: absUrl('/images/ceramic-plate.svg') // Update with your actual logo URL
-    },
-    {
-      '@type': 'WebSite',
-      '@id': websiteId,
-      url: websiteUrl,
-      name: 'Ceramic Artistry',
-      publisher: {
-        '@id': organizationId
-      }
-    },
-    {
-      '@type': 'CollectionPage',
-      '@id': `${canonicalUrl.value}#webpage`,
-      url: canonicalUrl.value,
-      name: `${collectionName} - Ceramic Artistry`,
-      description,
-      mainEntity: {
-        '@id': `${canonicalUrl.value}#itemlist`
-      }
-    },
-    {
-      '@type': 'ItemList',
-      '@id': `${canonicalUrl.value}#itemlist`,
-      name: `${collectionName} Products`,
-      description,
-      numberOfItems: loadedProducts.value.length,
-      itemListElement: loadedProducts.value.map((p, index) => {
-        const productUrlFull = absUrl(productUrl(p))
-        const images = [p.image].filter(Boolean).map(absUrl).filter(Boolean)
-        const offerPrice = getOfferPrice(p)
-        
-        // Simplified product info (Google best practice for collection pages)
-        return {
-          '@type': 'ListItem',
-          position: index + 1,
-          item: {
-            '@type': 'Product',
-            '@id': productUrlFull,
-            name: p.name,
-            url: productUrlFull,
-            mainEntityOfPage: {
-              '@type': 'WebPage',
-              '@id': productUrlFull
-            },
-            ...(images.length ? { image: images[0] } : {}),
-            offers: {
-              '@type': 'Offer',
-              priceCurrency: 'INR',
-              price: String(offerPrice),
-              availability: 'https://schema.org/InStock'
-            }
-          }
-        }
-      })
-    }
-  ]
-
-  return {
-    '@context': 'https://schema.org',
-    '@graph': graph
-  }
-})
-
-// Inject JSON-LD into head
-watchEffect(() => {
-  if (!collectionJsonLd.value || loadedProducts.value.length === 0) return
-  
-  useHead({
-    script: [
-      {
-        key: 'ld-collection',
-        type: 'application/ld+json',
-        children: JSON.stringify(collectionJsonLd.value)
-      }
-    ],
-    link: [
-      {
-        key: 'canonical-collection',
-        rel: 'canonical',
-        href: canonicalUrl.value
-      }
-    ]
-  })
-})
 </script>
 
 <style scoped>
@@ -505,43 +323,77 @@ watchEffect(() => {
   padding-bottom: 2.25rem;
 }
 
-/* Top bar */
+/* Top Banner */
+.top-banner {
+  background: #fafafa;
+  padding: 8px 0;
+  text-align: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.banner-text {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: #666;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-style: italic;
+  letter-spacing: 0.05em;
+  text-transform: none;
+}
+
+.banner-text::first-letter {
+  text-transform: capitalize;
+}
+
+/* Header */
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 140;
+  z-index: 150;
   height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px;
-  background: rgba(250, 250, 250, 0.92);
+  padding: 0 16px;
+  background: #fff;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  backdrop-filter: blur(10px);
 }
 
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  text-decoration: none;
-  color: var(--text-dark);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.brand-mark {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  display: inline-flex;
+.menu-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(139, 69, 19, 0.14), rgba(210, 105, 30, 0.14));
 }
 
-.brand-text {
-  font-size: 1rem;
+.menu-btn svg {
+  width: 24px;
+  height: 24px;
+  stroke: #333;
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  color: #333;
+  font-weight: 600;
+  font-size: 1.125rem;
+  letter-spacing: 0.05em;
+}
+
+.logo-text {
+  font-family: sans-serif;
+}
+
+.logo-dot {
+  font-size: 0.75rem;
+  color: #333;
 }
 
 .topbar-actions {
@@ -550,24 +402,21 @@ watchEffect(() => {
   gap: 10px;
 }
 
-.cart-link {
+.cart-btn {
   position: relative;
-  display: inline-flex;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--text-dark);
-  border-radius: 12px;
-  font-size: 1.25rem;
-  text-decoration: none;
-  transition: background 0.2s;
 }
 
-.cart-link:hover {
-  background: rgba(255, 255, 255, 1);
+.cart-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke: #333;
 }
 
 .cart-badge {
@@ -586,43 +435,6 @@ watchEffect(() => {
   justify-content: center;
   padding: 0 4px;
   line-height: 1;
-}
-
-.icon-btn {
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--text-dark);
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  font-size: 1rem;
-  cursor: pointer;
-}
-
-/* Hero */
-.hero {
-  padding: 20px 14px 16px;
-  text-align: center;
-}
-
-.hero-inner {
-  max-width: 720px;
-  margin: 0 auto;
-}
-
-.hero-title {
-  font-size: 1.85rem;
-  font-weight: 1000;
-  color: var(--text-dark);
-  margin: 0 0 8px;
-  letter-spacing: -0.03em;
-}
-
-.hero-subtitle {
-  font-size: 0.95rem;
-  color: var(--text-muted);
-  margin: 0;
-  line-height: 1.4;
 }
 
 /* Controls */
@@ -709,43 +521,30 @@ watchEffect(() => {
 .collection-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   flex-shrink: 0;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.92);
-  color: rgba(44, 62, 80, 0.92);
-  padding: 10px 12px;
-  font-size: 0.9rem;
-  font-weight: 800;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  color: #2c2c2c;
+  padding: 10px 20px;
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   cursor: pointer;
   text-decoration: none;
-  transition: transform 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .collection-chip.active {
-  color: #fff;
-  border-color: transparent;
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-  box-shadow: 0 10px 18px rgba(139, 69, 19, 0.22);
+  border-color: #2c2c2c;
+  border-width: 2px;
+  font-weight: 500;
+  background: #fff;
+  color: #2c2c2c;
 }
 
 .collection-chip:active {
   transform: scale(0.98);
-}
-
-.chip-ic {
-  width: 26px;
-  height: 26px;
-  border-radius: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.collection-chip.active .chip-ic {
-  background: rgba(255, 255, 255, 0.18);
 }
 
 /* Products Section */
@@ -770,13 +569,10 @@ watchEffect(() => {
 }
 
 .product-card {
-  background-color: var(--bg-white);
-  border-radius: 18px;
+  background-color: #fff;
   overflow: hidden;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.07);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease;
   cursor: pointer;
-  border: 1px solid rgba(0, 0, 0, 0.06);
   text-decoration: none;
   color: inherit;
   display: block;
@@ -788,7 +584,7 @@ watchEffect(() => {
 
 .product-image {
   width: 100%;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 3 / 4;
   background: linear-gradient(135deg, #f6f6f6 0%, #ededed 100%);
   display: flex;
   align-items: center;
@@ -803,81 +599,40 @@ watchEffect(() => {
   display: block;
 }
 
-.badge {
-  position: absolute;
-  left: 10px;
-  top: 10px;
-  font-size: 0.75rem;
-  font-weight: 900;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  color: rgba(44, 62, 80, 0.85);
-  backdrop-filter: blur(10px);
-}
-
 .discount-badge {
   position: absolute;
   right: 10px;
   top: 10px;
   font-size: 0.75rem;
-  font-weight: 1000;
-  padding: 6px 10px;
-  border-radius: 999px;
+  font-weight: 700;
+  padding: 0.375rem 0.625rem;
+  border-radius: 6px;
   color: #fff;
-  background: linear-gradient(135deg, #1f7a5c, #2aa87d);
-  box-shadow: 0 10px 18px rgba(31, 122, 92, 0.22);
+  background: linear-gradient(135deg, #d32f2f, #f44336);
+  z-index: 1;
 }
 
 .product-info {
-  padding: 12px 12px 12px;
+  padding: 12px 0;
 }
 
 .product-name {
-  font-size: 0.98rem;
-  font-weight: 900;
-  color: var(--text-dark);
-  margin-bottom: 6px;
-  letter-spacing: -0.01em;
-}
-
-.product-description {
-  font-size: 0.82rem;
-  color: var(--text-muted-2);
-  margin-bottom: 10px;
-  line-height: 1.35;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.product-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: #2c2c2c;
+  margin-bottom: 4px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
 .product-price {
-  font-size: 1.05rem;
-  font-weight: 1000;
-  color: var(--primary-color);
-}
-
-.view-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px 12px;
-  border-radius: 999px;
-  font-size: 0.85rem;
-  font-weight: 900;
-  white-space: nowrap;
-  color: rgba(44, 62, 80, 0.92);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.92);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: #2c2c2c;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* Empty State */

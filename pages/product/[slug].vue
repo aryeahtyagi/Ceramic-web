@@ -1,15 +1,36 @@
 <template>
   <div class="product-page">
+    <!-- Top Banner -->
+    <div class="top-banner">
+      <p class="banner-text">Designed to impress, Made to use</p>
+    </div>
+
+    <!-- Header -->
     <header class="topbar">
-      <NuxtLink to="/collections" class="back" aria-label="Back to collections">
-        ←
-      </NuxtLink>
-      <div class="topbar-title">Product</div>
-      <button class="cart-btn" type="button" @click="showCartToast" aria-label="Cart">
-        🛒
-        <span v-if="cart.totalQty.value" class="cart-badge" aria-label="Cart items">{{ cart.totalQty.value }}</span>
+      <button class="menu-btn" type="button" aria-label="Menu" @click="menuOpen = true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12h18M3 6h18M3 18h18"/>
+        </svg>
       </button>
+      <NuxtLink to="/" class="brand-logo">
+        <span class="logo-text">SVRVE</span>
+        <span class="logo-dot">•</span>
+      </NuxtLink>
+      <div class="topbar-actions">
+        <button class="cart-btn" type="button" @click="router.push('/cart')" aria-label="Cart">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+          <span v-if="cart.totalQty.value" class="cart-badge" aria-label="Cart items">{{ cart.totalQty.value }}</span>
+        </button>
+        <AccountDropdown />
+      </div>
     </header>
+
+    <!-- Hamburger Menu -->
+    <HamburgerMenu :is-open="menuOpen" @close="menuOpen = false" />
 
     <div class="content">
       <section v-if="pending" class="loading">
@@ -28,6 +49,7 @@
       </section>
 
       <section v-else class="product">
+        <!-- Product Media -->
         <div class="media">
           <div 
             class="image-swiper"
@@ -98,109 +120,165 @@
             </div>
 
             <div v-if="discountPercent" class="discount-badge">{{ discountPercent }}% OFF</div>
-          </div>
-
-          <div v-if="gallery.length > 1" class="thumbs" aria-label="Product images">
-            <button
-              v-for="(img, idx) in gallery"
-              :key="`${idx}-${img}`"
-              type="button"
-              class="thumb"
-              :class="{ active: idx === currentImageIndex }"
-              @click="goToImage(idx)"
-              :aria-label="`View image ${idx + 1}`"
+            
+            <button 
+              type="button" 
+              class="zoom-btn"
+              @click="openZoomModal"
+              aria-label="Zoom image"
             >
-              <img
-                :src="img"
-                :alt="`${product.name} image ${idx + 1}`"
-                loading="lazy"
-                decoding="async"
-                referrerpolicy="no-referrer"
-                crossorigin="anonymous"
-              />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.35-4.35"/>
+                <path d="M11 8v6M8 11h6"/>
+              </svg>
             </button>
           </div>
         </div>
 
+        <!-- Product Info -->
         <div class="info">
-          <h1 class="title">{{ product.name }}</h1>
-          <p v-if="product.description" class="subtitle">{{ product.description }}</p>
-
-          <div class="price-row">
-            <div class="price">{{ formatPrice(product.price) }}</div>
-            <div v-if="categoryLabel" class="chip">{{ categoryLabel }}</div>
+          <div class="product-header">
+            <button class="wishlist-btn" type="button" aria-label="Add to wishlist">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+            </button>
+            <span class="handmade-tag">HANDMADE</span>
           </div>
 
-          <p v-if="product.about" class="about">
-            {{ product.about }}
-          </p>
+          <h1 class="product-name">{{ product.name }}</h1>
 
-          <section v-if="benefits.length" class="section">
-            <h2 class="h2">Benefits</h2>
-            <div class="benefits">
-              <div v-for="b in benefits" :key="b.id || b.value" class="benefit">
-                <img
-                  v-if="safeImg(b.logo)"
-                  class="benefit-ic"
-                  :src="safeImg(b.logo)"
-                  :alt="b.value || 'Benefit'"
-                  loading="lazy"
-                  decoding="async"
-                  referrerpolicy="no-referrer"
-                  crossorigin="anonymous"
-                />
-                <div class="benefit-text">
-                  <div class="benefit-title">{{ b.value }}</div>
-                  <div v-if="b.description" class="benefit-sub">{{ b.description }}</div>
-                </div>
+          <div class="rating-section">
+            <div class="stars">
+              <span v-for="i in 5" :key="i" class="star" :class="{ filled: i <= starRating }">★</span>
+            </div>
+            <span v-if="reviewsCount > 0" class="reviews-text">
+              {{ averageRating }}/5 ({{ reviewsCount }} review{{ reviewsCount !== 1 ? 's' : '' }})
+            </span>
+            <span v-else class="reviews-text">No reviews yet</span>
+          </div>
+
+          <div class="price-section">
+            <span class="price">{{ formatPrice(offerPrice || product.price) }}</span>
+            <span v-if="discountPercent" class="original-price">{{ formatPrice(product.price) }}</span>
+          </div>
+
+          <!-- Quantity Selection -->
+          <div class="quantity-section">
+            <label class="quantity-label">QUANTITY</label>
+            <div class="quantity-controls">
+              <button class="qty-btn" type="button" @click="selectedQuantity = Math.max(1, selectedQuantity - 1)" aria-label="Decrease">
+                −
+              </button>
+              <span class="qty-value">{{ selectedQuantity }}</span>
+              <button class="qty-btn" type="button" @click="selectedQuantity++" aria-label="Increase">
+                +
+              </button>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="action-buttons">
+            <button class="add-to-cart-btn" type="button" @click="addCurrentToCart">
+              ADD TO CART
+            </button>
+            <button class="buy-now-btn" type="button" @click="handleBuyNow">
+              BUY IT NOW
+            </button>
+          </div>
+
+          <!-- Shipping Info -->
+          <div class="shipping-info">
+            <p>Dispatches within 3-4 business days. Cash on delivery available.</p>
+          </div>
+
+          <!-- Product Description -->
+          <div v-if="product.description || product.about" class="description-section">
+            <h2 class="section-title">Description</h2>
+            <p class="description-text">{{ product.description || product.about }}</p>
+          </div>
+
+          <!-- Features/Benefits -->
+          <div v-if="lovePoints.length > 0" class="features-section">
+            <h2 class="section-title">Features</h2>
+            <ul class="features-list">
+              <li v-for="point in lovePoints" :key="point.id || point.value" class="feature-item">
+                {{ point.value }}
+              </li>
+            </ul>
+          </div>
+
+          <!-- Expandable Sections -->
+          <div class="expandable-sections">
+            <div 
+              v-if="materialAndCare"
+              class="expandable-section"
+              :class="{ expanded: expandedSections.material }"
+            >
+              <button 
+                class="section-header"
+                type="button"
+                @click="toggleSection('material')"
+              >
+                <span>MATERIAL & CARE</span>
+                <span class="toggle-icon">{{ expandedSections.material ? '−' : '+' }}</span>
+              </button>
+              <div v-if="expandedSections.material" class="section-content">
+                <p>{{ materialAndCare }}</p>
               </div>
             </div>
-          </section>
 
-          <section v-if="lovePoints.length" class="section">
-            <h2 class="h2">Why you’ll love it</h2>
-            <ul class="bullets">
-              <li v-for="p in lovePoints" :key="p.id || p.value">{{ p.value }}</li>
-            </ul>
-          </section>
-
-          <section v-if="detailsRows.length" class="section">
-            <h2 class="h2">Details</h2>
-            <dl class="details">
-              <template v-for="row in detailsRows" :key="row.key">
-                <dt>{{ row.key }}</dt>
-                <dd>{{ row.value }}</dd>
-              </template>
-            </dl>
-          </section>
+            <div class="expandable-section" :class="{ expanded: expandedSections.shipping }">
+              <button 
+                class="section-header"
+                type="button"
+                @click="toggleSection('shipping')"
+              >
+                <span>SHIPPING & RETURNS</span>
+                <span class="toggle-icon">{{ expandedSections.shipping ? '−' : '+' }}</span>
+              </button>
+              <div v-if="expandedSections.shipping" class="section-content">
+                <p>Dispatches within 3-4 business days. Cash on delivery available. Easy returns within 7 days of delivery.</p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
-    </div>
 
-    <!-- Sticky purchase bar -->
-    <div v-if="product && !pending" class="purchase-bar" role="region" aria-label="Purchase options">
-      <div class="purchase-meta">
-        <div class="purchase-price">{{ formatPrice(product.price) }}</div>
-        <div class="purchase-sub">Inclusive of taxes</div>
-      </div>
-
-      <div class="purchase-actions">
-        <template v-if="productQty > 0">
-          <div class="qty">
-            <button class="qty-btn" type="button" aria-label="Decrease quantity" @click="handleQtyChange('dec')">
-              −
+      <!-- Zoom Modal -->
+      <Transition name="zoom-modal">
+        <div v-if="showZoomModal" class="zoom-modal-overlay" @click="closeZoomModal">
+          <div class="zoom-modal-content" @click.stop>
+            <button class="zoom-close-btn" type="button" @click="closeZoomModal" aria-label="Close zoom">
+              ×
             </button>
-            <div class="qty-val" aria-label="Quantity">{{ productQty }}</div>
-            <button class="qty-btn" type="button" aria-label="Increase quantity" @click="handleQtyChange('inc')">
-              +
-            </button>
+            <div 
+              class="zoom-image-container"
+              @mousedown="startPan"
+              @mousemove="handlePan"
+              @mouseup="endPan"
+              @mouseleave="endPan"
+              @wheel.prevent="handleWheelZoom"
+            >
+              <img
+                :src="gallery[currentImageIndex]"
+                :alt="product.name"
+                class="zoom-image"
+                :style="{ 
+                  transform: `scale(${zoomLevel}) translate(${panX}px, ${panY}px)`,
+                  transition: zoomLevel <= 1 ? 'transform 0.3s' : 'none'
+                }"
+              />
+            </div>
+            <div class="zoom-controls">
+              <button class="zoom-control-btn" type="button" @click="zoomIn" aria-label="Zoom in">+</button>
+              <button class="zoom-control-btn" type="button" @click="zoomOut" aria-label="Zoom out">−</button>
+              <button class="zoom-control-btn" type="button" @click="resetZoom" aria-label="Reset zoom">Reset</button>
+            </div>
           </div>
-        </template>
-
-        <button v-else class="add-btn" type="button" @click="addCurrentToCart">
-          Add to cart
-        </button>
-      </div>
+        </div>
+      </Transition>
     </div>
 
     <div v-if="toast" class="toast" role="status" aria-live="polite">{{ toast }}</div>
@@ -455,6 +533,9 @@ const auth = useAuth()
 const cart = useCart()
 const router = useRouter()
 
+// --- Menu ---
+const menuOpen = ref(false)
+
 const productQty = computed(() => {
   const p = product.value
   if (!p?.id) return 0
@@ -481,6 +562,8 @@ const checkAuth = () => {
   return true
 }
 
+const selectedQuantity = ref(1)
+
 const addCurrentToCart = async () => {
   if (!checkAuth()) return
 
@@ -495,13 +578,20 @@ const addCurrentToCart = async () => {
       image: gallery.value[currentImageIndex.value] || heroImage.value,
       slug: String(route.params.slug || '')
     },
-    1
+    selectedQuantity.value
   )
   
   if (success) {
     showToast('Added to cart')
   } else {
     showToast('Failed to update cart. Please try again.')
+  }
+}
+
+const handleBuyNow = async () => {
+  await addCurrentToCart()
+  if (cart.totalQty.value > 0) {
+    router.push('/cart')
   }
 }
 
@@ -524,7 +614,12 @@ const handleQtyChange = async (action) => {
 }
 
 const showCartToast = () => {
-  router.push('/cart')
+  const n = cart.totalQty.value
+  if (!n) {
+    showToast('Cart is empty')
+    return
+  }
+  showToast(`${n} item${n === 1 ? '' : 's'} in cart`)
 }
 
 const discountPercent = computed(() => {
@@ -559,6 +654,133 @@ const detailsRows = computed(() => {
   }
   return rows
 })
+
+// Reviews
+const reviewsCount = computed(() => {
+  const p = product.value
+  if (p?.reviewsMetaData?.reviews) {
+    return Number(p.reviewsMetaData.reviews) || 0
+  }
+  return Array.isArray(p?.reviews) ? p.reviews.length : 0
+})
+
+const averageRating = computed(() => {
+  const p = product.value
+  if (p?.reviewsMetaData?.rating) {
+    const rating = Number(p.reviewsMetaData.rating)
+    return rating > 0 ? rating.toFixed(1) : '0.0'
+  }
+  const reviews = p?.reviews
+  if (Array.isArray(reviews) && reviews.length > 0) {
+    const ratings = reviews.map(r => Number(r.rating || 0)).filter(r => r > 0)
+    if (ratings.length > 0) {
+      const avg = ratings.reduce((sum, r) => sum + r, 0) / ratings.length
+      return avg.toFixed(1)
+    }
+  }
+  return '0.0'
+})
+
+const starRating = computed(() => {
+  const rating = Number(averageRating.value)
+  return Math.round(rating)
+})
+
+// Material & Care
+const materialAndCare = computed(() => {
+  const p = product.value
+  if (!p) return ''
+  const details = p.productDetails || []
+  const care = details.find(d => normalize(d?.dimension?.name) === 'care')
+  const material = details.find(d => normalize(d?.dimension?.name) === 'material')
+  const parts = []
+  if (material?.value) parts.push(`Material: ${material.value}`)
+  if (care?.value) parts.push(`Care: ${care.value}`)
+  return parts.join('. ') || 'Handcrafted with care. Follow care instructions for best results.'
+})
+
+// Expandable sections
+const expandedSections = ref({
+  material: false,
+  shipping: false
+})
+
+const toggleSection = (section) => {
+  expandedSections.value[section] = !expandedSections.value[section]
+}
+
+// Zoom modal
+const showZoomModal = ref(false)
+const zoomLevel = ref(1)
+const panX = ref(0)
+const panY = ref(0)
+const isPanning = ref(false)
+const panStartX = ref(0)
+const panStartY = ref(0)
+
+const openZoomModal = () => {
+  showZoomModal.value = true
+  zoomLevel.value = 1
+  panX.value = 0
+  panY.value = 0
+  if (process.client) {
+    document.body.style.overflow = 'hidden'
+  }
+}
+
+const closeZoomModal = () => {
+  showZoomModal.value = false
+  resetZoom()
+  if (process.client) {
+    document.body.style.overflow = ''
+  }
+}
+
+const zoomIn = () => {
+  zoomLevel.value = Math.min(5, zoomLevel.value + 0.5)
+}
+
+const zoomOut = () => {
+  zoomLevel.value = Math.max(0.5, zoomLevel.value - 0.5)
+  if (zoomLevel.value <= 1) {
+    panX.value = 0
+    panY.value = 0
+  }
+}
+
+const resetZoom = () => {
+  zoomLevel.value = 1
+  panX.value = 0
+  panY.value = 0
+}
+
+const handleWheelZoom = (e) => {
+  e.preventDefault()
+  const delta = e.deltaY > 0 ? -0.1 : 0.1
+  const newZoom = Math.max(0.5, Math.min(5, zoomLevel.value + delta))
+  zoomLevel.value = newZoom
+  if (newZoom <= 1) {
+    panX.value = 0
+    panY.value = 0
+  }
+}
+
+const startPan = (e) => {
+  if (zoomLevel.value <= 1) return
+  isPanning.value = true
+  panStartX.value = e.clientX - panX.value
+  panStartY.value = e.clientY - panY.value
+}
+
+const handlePan = (e) => {
+  if (!isPanning.value || zoomLevel.value <= 1) return
+  panX.value = e.clientX - panStartX.value
+  panY.value = e.clientY - panStartY.value
+}
+
+const endPan = () => {
+  isPanning.value = false
+}
 
 const formatPrice = (price) => {
   const n = Number(price || 0)
@@ -726,73 +948,121 @@ watchEffect(() => {
 <style scoped>
 .product-page {
   min-height: 100vh;
-  background: var(--bg-light);
-  padding-bottom: 96px; /* space for sticky purchase bar */
+  background: #fff;
 }
 
+/* Top Banner */
+.top-banner {
+  background: #fafafa;
+  padding: 8px 0;
+  text-align: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.banner-text {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: #666;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-style: italic;
+  letter-spacing: 0.05em;
+  text-transform: none;
+}
+
+.banner-text::first-letter {
+  text-transform: capitalize;
+}
+
+/* Header */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 150;
   height: 56px;
-  display: grid;
-  grid-template-columns: 44px 1fr 44px;
+  display: flex;
   align-items: center;
-  padding: 0 10px;
-  background: rgba(250, 250, 250, 0.92);
+  justify-content: space-between;
+  padding: 0 16px;
+  background: #fff;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  backdrop-filter: blur(10px);
 }
 
-.back {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  display: inline-flex;
+.menu-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  text-decoration: none;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--text-dark);
-  font-weight: 900;
 }
 
-.topbar-title {
-  text-align: center;
-  font-weight: 900;
-  color: var(--text-dark);
+.menu-btn svg {
+  width: 24px;
+  height: 24px;
+  stroke: #333;
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  color: #333;
+  font-weight: 600;
+  font-size: 1.125rem;
+  letter-spacing: 0.05em;
+}
+
+.logo-text {
+  font-family: sans-serif;
+}
+
+.logo-dot {
+  font-size: 0.75rem;
+  color: #333;
+}
+
+.topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .cart-btn {
   position: relative;
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.92);
+  background: none;
+  border: none;
   cursor: pointer;
-  display: inline-flex;
+  padding: 8px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.05rem;
+}
+
+.cart-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke: #333;
 }
 
 .cart-badge {
   position: absolute;
-  top: -6px;
-  right: -6px;
+  top: -4px;
+  right: -4px;
+  background: #d32f2f;
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 600;
   min-width: 18px;
   height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 1000;
-  display: inline-flex;
+  border-radius: 9px;
+  display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
 }
 
 .content {
@@ -1234,6 +1504,397 @@ watchEffect(() => {
   font-weight: 900;
   font-size: 0.9rem;
   max-width: 92vw;
+}
+
+/* Product Info Styles */
+.product-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.wishlist-btn {
+  background: none;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  width: 40px;
+  height: 40px;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.wishlist-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke: #333;
+  fill: none;
+}
+
+.wishlist-btn:hover {
+  border-color: #d32f2f;
+}
+
+.handmade-tag {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #666;
+  padding: 4px 8px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+}
+
+.product-name {
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: #2c2c2c;
+  margin: 0 0 16px;
+  line-height: 1.4;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.rating-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stars {
+  display: flex;
+  gap: 2px;
+}
+
+.star {
+  font-size: 1rem;
+  color: #ddd;
+}
+
+.star.filled {
+  color: #ffc107;
+}
+
+.reviews-text {
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.price-section {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.price {
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: #2c2c2c;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.original-price {
+  font-size: 1.125rem;
+  color: #999;
+  text-decoration: line-through;
+}
+
+.quantity-section {
+  margin-bottom: 24px;
+}
+
+.quantity-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.quantity-controls {
+  display: flex;
+  align-items: center;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  width: fit-content;
+}
+
+.qty-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: #fff;
+  color: #333;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.qty-btn:hover {
+  background: #f5f5f5;
+}
+
+.qty-value {
+  min-width: 60px;
+  text-align: center;
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.add-to-cart-btn,
+.buy-now-btn {
+  width: 100%;
+  padding: 16px;
+  border: 1px solid #2c2c2c;
+  background: #fff;
+  color: #2c2c2c;
+  font-size: 0.875rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.buy-now-btn {
+  background: #2c2c2c;
+  color: #fff;
+}
+
+.add-to-cart-btn:hover {
+  background: #f5f5f5;
+}
+
+.buy-now-btn:hover {
+  background: #000;
+}
+
+.shipping-info {
+  padding: 16px;
+  background: #fafafa;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  margin-bottom: 32px;
+}
+
+.shipping-info p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #666;
+  line-height: 1.5;
+}
+
+.description-section,
+.features-section {
+  margin-bottom: 32px;
+}
+
+.section-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #2c2c2c;
+  margin: 0 0 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.description-text {
+  font-size: 0.9375rem;
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.features-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.feature-item {
+  font-size: 0.9375rem;
+  color: #666;
+  line-height: 1.6;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.feature-item:last-child {
+  border-bottom: none;
+}
+
+.expandable-sections {
+  margin-top: 32px;
+}
+
+.expandable-section {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.section-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #2c2c2c;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.toggle-icon {
+  font-size: 1.5rem;
+  font-weight: 300;
+  color: #666;
+}
+
+.section-content {
+  padding-bottom: 16px;
+  font-size: 0.9375rem;
+  color: #666;
+  line-height: 1.6;
+}
+
+/* Zoom Button */
+.zoom-btn {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 12;
+  transition: all 0.2s;
+}
+
+.zoom-btn:hover {
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  transform: scale(1.05);
+}
+
+.zoom-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke: #333;
+}
+
+/* Zoom Modal */
+.zoom-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.zoom-modal-content {
+  position: relative;
+  width: 100%;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.zoom-close-btn {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 2rem;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zoom-image-container {
+  width: 100%;
+  height: 80vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+}
+
+.zoom-image-container:active {
+  cursor: grabbing;
+}
+
+.zoom-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+.zoom-controls {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.zoom-control-btn {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.zoom-control-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.zoom-modal-enter-active,
+.zoom-modal-leave-active {
+  transition: opacity 0.3s;
+}
+
+.zoom-modal-enter-from,
+.zoom-modal-leave-to {
+  opacity: 0;
 }
 </style>
 

@@ -1,12 +1,36 @@
 <template>
   <div class="cart-page">
+    <!-- Top Banner -->
+    <div class="top-banner">
+      <p class="banner-text">Designed to impress, Made to use</p>
+    </div>
+
+    <!-- Header -->
     <header class="topbar">
-      <NuxtLink to="/collections" class="back" aria-label="Back to collections">
-        ←
+      <button class="menu-btn" type="button" aria-label="Menu" @click="menuOpen = true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12h18M3 6h18M3 18h18"/>
+        </svg>
+      </button>
+      <NuxtLink to="/" class="brand-logo">
+        <span class="logo-text">SVRVE</span>
+        <span class="logo-dot">•</span>
       </NuxtLink>
-      <div class="topbar-title">Shopping Cart</div>
-      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="cart-btn" type="button" @click="router.push('/cart')" aria-label="Cart">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+          <span v-if="cart.totalQty.value" class="cart-badge" aria-label="Cart items">{{ cart.totalQty.value }}</span>
+        </button>
+        <AccountDropdown />
+      </div>
     </header>
+
+    <!-- Hamburger Menu -->
+    <HamburgerMenu :is-open="menuOpen" @close="menuOpen = false" />
 
     <div class="content">
       <!-- Loading State -->
@@ -54,75 +78,21 @@
 
             <div class="item-content">
               <div class="item-header">
-                <div class="item-title-section">
-                  <NuxtLink :to="productUrl(item.product)" class="item-name">
-                    {{ item.product.name }}
-                  </NuxtLink>
-                  <p v-if="item.product.description" class="item-description">
-                    {{ item.product.description }}
-                  </p>
-                </div>
-                <div class="item-price-section">
-                  <div class="item-pricing">
-                    <span v-if="hasDiscount(item.product)" class="item-price-original">
-                      ₹{{ formatPrice(item.product.price) }}
-                    </span>
-                    <span class="item-price" :class="{ 'has-discount': hasDiscount(item.product) }">
-                      ₹{{ formatPrice(getFinalPrice(item.product)) }}
-                    </span>
-                  </div>
-                  <div class="item-quantity-badge">Qty: {{ item.quantity }}</div>
-                </div>
+                <NuxtLink :to="productUrl(item.product)" class="item-name">
+                  {{ item.product.name }}
+                </NuxtLink>
+                <div class="item-price">Rs. {{ formatPrice(getFinalPrice(item.product)) }}</div>
               </div>
-
-              <!-- Benefits Section -->
-              <div v-if="getBenefits(item.product).length > 0" class="item-benefits">
-                <div class="benefits-list">
-                  <div
-                    v-for="benefit in getBenefits(item.product)"
-                    :key="benefit.id || benefit.value"
-                    class="benefit-item"
-                  >
-                    <img
-                      v-if="getSafeImage(benefit.logo)"
-                      :src="getSafeImage(benefit.logo)"
-                      :alt="benefit.value || 'Benefit'"
-                      class="benefit-icon"
-                      loading="lazy"
-                      referrerpolicy="no-referrer"
-                      crossorigin="anonymous"
-                    />
-                    <span class="benefit-text">{{ benefit.value }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Reviews Section -->
-              <div class="item-reviews">
-                <div v-if="hasReviews(item.product)" class="reviews-content">
-                  <div class="reviews-summary">
-                    <span class="reviews-rating">
-                      ⭐ {{ getAverageRating(item.product) }}/5
-                    </span>
-                    <span class="reviews-count">
-                      ({{ getReviewsCount(item.product) }} review{{ getReviewsCount(item.product) !== 1 ? 's' : '' }})
-                    </span>
-                  </div>
-                </div>
-                <div v-else class="reviews-empty">
-                  <span class="reviews-icon">⭐</span>
-                  <span>No reviews yet</span>
-                </div>
-              </div>
-
-              <div class="item-actions">
+              
+              <div class="item-quantity-badge">QTY: {{ item.quantity }}</div>
+              
+              <div class="item-controls">
                 <div class="quantity-controls">
                   <button
                     type="button"
                     class="qty-btn"
                     :disabled="updatingItems.has(item.cartId) || item.quantity <= 1"
                     @click="decreaseQuantity(item)"
-                    aria-label="Decrease quantity"
                   >
                     −
                   </button>
@@ -132,7 +102,6 @@
                     class="qty-btn"
                     :disabled="updatingItems.has(item.cartId)"
                     @click="increaseQuantity(item)"
-                    aria-label="Increase quantity"
                   >
                     +
                   </button>
@@ -142,7 +111,6 @@
                   class="remove-btn"
                   :disabled="updatingItems.has(item.cartId)"
                   @click="removeItem(item)"
-                  aria-label="Remove item"
                 >
                   <span class="remove-icon">🗑️</span>
                   <span>Remove</span>
@@ -158,19 +126,19 @@
           
           <div class="summary-row">
             <span class="summary-label">Subtotal</span>
-            <span class="summary-value">₹{{ formatPrice(subtotal) }}</span>
+            <span class="summary-value">Rs. {{ formatPrice(subtotal) }}</span>
           </div>
           
           <div v-if="totalDiscount > 0" class="summary-row discount-row">
             <span class="summary-label">Discount</span>
-            <span class="summary-value discount-value">-₹{{ formatPrice(totalDiscount) }}</span>
+            <span class="summary-value discount-value">-Rs. {{ formatPrice(totalDiscount) }}</span>
           </div>
           
           <div class="summary-divider"></div>
           
           <div class="summary-row total-row">
             <span class="summary-label">Total</span>
-            <span class="summary-value total-value">₹{{ formatPrice(total) }}</span>
+            <span class="summary-value total-value">Rs. {{ formatPrice(total) }}</span>
           </div>
 
           <button
@@ -200,6 +168,9 @@ const router = useRouter()
 const config = useRuntimeConfig()
 const apiBase = String(config.public.apiBase || '').replace(/\/$/, '')
 const cart = useCart()
+
+// --- Menu ---
+const menuOpen = ref(false)
 
 // Redirect to login if not authenticated
 if (process.client && !auth.isAuthenticated.value) {
@@ -362,7 +333,9 @@ const productUrl = (product) => {
 }
 
 const formatPrice = (price) => {
-  return Number(price || 0).toLocaleString('en-IN')
+  const n = Number(price || 0)
+  const formatted = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n)
+  return formatted
 }
 
 const hasDiscount = (product) => {
@@ -399,60 +372,6 @@ const getProductImage = (product) => {
   if (type.includes('bowl')) return '/images/ceramic-bowl.svg'
   if (type.includes('vase')) return '/images/ceramic-vase.svg'
   return '/images/ceramic-plate.svg'
-}
-
-// Benefits helpers
-const getBenefits = (product) => {
-  if (!product?.benefits || !Array.isArray(product.benefits)) return []
-  return product.benefits.filter(b => b && b.value)
-}
-
-const getSafeImage = (url) => {
-  const u = String(url || '').trim()
-  if (!u) return null
-  // Block third-party cookies
-  if (u.includes('img.icons8.com')) return null
-  return u
-}
-
-// Reviews helpers
-const hasReviews = (product) => {
-  const reviews = product?.reviews
-  return Array.isArray(reviews) && reviews.length > 0
-}
-
-const getReviewsCount = (product) => {
-  if (product?.reviewsMetaData?.reviews) {
-    return Number(product.reviewsMetaData.reviews) || 0
-  }
-  const reviews = product?.reviews
-  return Array.isArray(reviews) ? reviews.length : 0
-}
-
-const getAverageRating = (product) => {
-  if (product?.reviewsMetaData?.rating) {
-    const rating = Number(product.reviewsMetaData.rating)
-    return rating > 0 ? rating.toFixed(1) : '0.0'
-  }
-  // Calculate from reviews if available
-  const reviews = product?.reviews
-  if (Array.isArray(reviews) && reviews.length > 0) {
-    const ratings = reviews.map(r => Number(r.rating || 0)).filter(r => r > 0)
-    if (ratings.length > 0) {
-      const avg = ratings.reduce((sum, r) => sum + r, 0) / ratings.length
-      return avg.toFixed(1)
-    }
-  }
-  return '0.0'
-}
-
-const getRecentReviews = (product, limit = 2) => {
-  const reviews = product?.reviews
-  if (!Array.isArray(reviews) || reviews.length === 0) return []
-  // Return up to limit reviews, prioritizing those with descriptions
-  return reviews
-    .filter(r => r && (r.description || r.rating > 0))
-    .slice(0, limit)
 }
 
 // Quantity management
@@ -645,44 +564,122 @@ useHead({
 <style scoped>
 .cart-page {
   min-height: 100vh;
-  background: #fafafa;
+  background: #fff;
 }
 
+/* Top Banner */
+.top-banner {
+  background: #fafafa;
+  padding: 8px 0;
+  text-align: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.banner-text {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: #666;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-style: italic;
+  letter-spacing: 0.05em;
+}
+
+/* Header */
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 100;
-  background: #fff;
-  border-bottom: 1px solid #e5e5e5;
-  padding: 1rem;
+  z-index: 140;
+  height: 56px;
   display: flex;
   align-items: center;
-  gap: 1rem;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.back {
-  font-size: 1.5rem;
-  color: #333;
+.menu-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menu-btn svg {
+  width: 24px;
+  height: 24px;
+  stroke: #333;
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   text-decoration: none;
-  line-height: 1;
-  padding: 0.25rem;
+  color: #333;
+  font-weight: 600;
+  font-size: 1.125rem;
+  letter-spacing: 0.05em;
 }
 
-.topbar-title {
-  flex: 1;
-  font-size: 1.125rem;
-  font-weight: 600;
+.logo-text {
+  font-family: sans-serif;
+}
+
+.logo-dot {
+  font-size: 0.75rem;
   color: #333;
 }
 
-.topbar-spacer {
-  width: 2.5rem;
+.topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cart-btn {
+  position: relative;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cart-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke: #333;
+}
+
+.cart-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #d32f2f;
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
 }
 
 .content {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1.5rem 1rem;
+  padding: 24px 20px;
 }
 
 /* Loading State */
@@ -814,57 +811,28 @@ useHead({
 }
 
 .cart-item {
-  background: #fff;
-  border-radius: 16px;
-  padding: 1.25rem;
   display: flex;
-  gap: 1.25rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: box-shadow 0.2s, transform 0.2s;
-  border: 1px solid #f0f0f0;
-}
-
-.cart-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
-}
-
-@media (max-width: 640px) {
-  .cart-item {
-    flex-direction: column;
-    padding: 1rem;
-    gap: 1rem;
-  }
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: #fff;
+  width: 100%;
 }
 
 .item-image-wrapper {
-  position: relative;
+  width: 190px;
+  height: 190px;
   flex-shrink: 0;
-  width: 140px;
-  height: 140px;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #f8f9fa;
-  display: block;
-}
-
-@media (max-width: 640px) {
-  .item-image-wrapper {
-    width: 100%;
-    height: 240px;
-    align-self: center;
-  }
+  background: #f8f8f8;
+  position: relative;
 }
 
 .item-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s;
-}
-
-.item-image-wrapper:hover .item-image {
-  transform: scale(1.05);
 }
 
 .discount-badge-overlay {
@@ -877,7 +845,6 @@ useHead({
   font-weight: 700;
   padding: 0.375rem 0.625rem;
   border-radius: 6px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   z-index: 1;
 }
 
@@ -885,212 +852,80 @@ useHead({
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  min-width: 0;
+  gap: 12px;
 }
 
 .item-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.item-title-section {
-  flex: 1;
-  min-width: 200px;
+  align-items: center;
+  gap: 16px;
 }
 
 .item-name {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #1a1a1a;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: #2c2c2c;
   text-decoration: none;
-  line-height: 1.3;
-  display: block;
-  margin-bottom: 0.375rem;
-  transition: color 0.2s;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
 }
 
 .item-name:hover {
-  color: #d32f2f;
-}
-
-.item-description {
-  font-size: 0.875rem;
-  color: #666;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  margin: 0;
-}
-
-.item-price-section {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.item-pricing {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.item-price-original {
-  font-size: 0.875rem;
-  color: #999;
-  text-decoration: line-through;
-  font-weight: 500;
+  color: #000;
 }
 
 .item-price {
-  font-size: 1.375rem;
-  font-weight: 700;
-  color: #1a1a1a;
-  line-height: 1;
-}
-
-.item-price.has-discount {
-  color: #d32f2f;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: #2c2c2c;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  white-space: nowrap;
 }
 
 .item-quantity-badge {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: #666;
   background: #f5f5f5;
-  padding: 0.25rem 0.625rem;
-  border-radius: 6px;
-  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 0;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  width: fit-content;
 }
 
-/* Benefits Section */
-.item-benefits {
-  padding-top: 0.75rem;
-  border-top: 1px solid #f0f0f0;
-}
-
-.benefits-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.benefit-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: linear-gradient(135deg, #f8f9fa, #ffffff);
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
-  font-size: 0.8125rem;
-  border: 1px solid #e9ecef;
-  transition: all 0.2s;
-}
-
-.benefit-item:hover {
-  background: linear-gradient(135deg, #e9ecef, #f8f9fa);
-  transform: translateY(-1px);
-}
-
-.benefit-icon {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
-  flex-shrink: 0;
-}
-
-.benefit-text {
-  color: #495057;
-  font-weight: 600;
-}
-
-/* Reviews Section */
-.item-reviews {
-  padding-top: 0.75rem;
-  border-top: 1px solid #f0f0f0;
-}
-
-.reviews-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.reviews-summary {
+.item-controls {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.reviews-rating {
-  font-size: 0.9375rem;
-  font-weight: 700;
-  color: #f57c00;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.reviews-count {
-  font-size: 0.8125rem;
-  color: #666;
-  font-weight: 500;
-}
-
-.reviews-empty {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.8125rem;
-  color: #999;
-  font-style: italic;
-}
-
-.reviews-icon {
-  font-size: 1rem;
-  opacity: 0.6;
-}
-
-.item-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid #f0f0f0;
-  margin-top: auto;
+  gap: 12px;
 }
 
 .quantity-controls {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  border: 2px solid #e9ecef;
-  border-radius: 10px;
-  padding: 0.375rem;
+  gap: 0;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 0;
+  padding: 0;
   background: #fff;
+  flex-shrink: 0;
+  max-width: fit-content;
 }
 
 .qty-btn {
   width: 36px;
   height: 36px;
   border: none;
-  background: #f8f9fa;
+  background: #fff;
   color: #333;
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: 400;
   cursor: pointer;
-  border-radius: 8px;
-  transition: all 0.2s;
+  border-radius: 0;
+  transition: background 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1098,12 +933,11 @@ useHead({
 }
 
 .qty-btn:hover:not(:disabled) {
-  background: #e9ecef;
-  transform: scale(1.05);
+  background: #fafafa;
 }
 
 .qty-btn:active:not(:disabled) {
-  transform: scale(0.95);
+  background: #f5f5f5;
 }
 
 .qty-btn:disabled {
@@ -1125,24 +959,28 @@ useHead({
   align-items: center;
   gap: 0.5rem;
   background: #fff;
-  border: 2px solid #ffebee;
-  color: #d32f2f;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #2c2c2c;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 400;
   cursor: pointer;
   padding: 0.625rem 1rem;
-  border-radius: 8px;
-  transition: all 0.2s;
+  border-radius: 0;
+  transition: border-color 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  flex-shrink: 0;
+  white-space: nowrap;
+  max-width: fit-content;
 }
 
 .remove-btn:hover:not(:disabled) {
-  background: #ffebee;
-  border-color: #d32f2f;
-  transform: translateY(-1px);
+  border-color: rgba(0, 0, 0, 0.2);
 }
 
 .remove-btn:active:not(:disabled) {
-  transform: translateY(0);
+  background: #fafafa;
 }
 
 .remove-btn:disabled {
@@ -1158,34 +996,40 @@ useHead({
 /* Order Summary */
 .order-summary {
   background: #fff;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 0;
+  padding: 24px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .summary-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 1rem;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: #2c2c2c;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
 .summary-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.75rem;
+  margin-bottom: 12px;
 }
 
 .summary-label {
   font-size: 0.9375rem;
   color: #666;
+  font-weight: 400;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
 .summary-value {
   font-size: 0.9375rem;
-  font-weight: 500;
-  color: #333;
+  font-weight: 400;
+  color: #2c2c2c;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
 .discount-row .summary-value {
@@ -1203,32 +1047,35 @@ useHead({
 }
 
 .total-row .summary-label {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #333;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #2c2c2c;
 }
 
 .total-value {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #333;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #2c2c2c;
 }
 
 .checkout-btn {
   width: 100%;
-  background: #333;
+  background: #2c2c2c;
   color: #fff;
   border: none;
-  padding: 1rem;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
+  padding: 16px;
+  border-radius: 0;
+  font-size: 0.875rem;
+  font-weight: 400;
   cursor: pointer;
   transition: background 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
 .checkout-btn:hover:not(:disabled) {
-  background: #555;
+  background: #000;
 }
 
 .checkout-btn:disabled {
