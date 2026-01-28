@@ -47,6 +47,12 @@ export default defineNuxtConfig({
       link: [
         // Global canonical URL (can be overridden per page)
         { rel: 'canonical', href: 'https://www.svrve.com' }
+      ],
+      script: [
+        {
+          // Restore original URL from ?p= param (GitHub Pages SPA routing)
+          children: `(function(){try{var search=window.location.search||'';if(!search)return;var params=new URLSearchParams(search);var p=params.get('p');if(!p)return;var decoded=decodeURIComponent(p);if(!decoded)return;var url=new URL(decoded,window.location.origin);window.history.replaceState({},'',url.pathname+url.search+url.hash);}catch(e){}})();`
+        }
       ]
     }
   },
