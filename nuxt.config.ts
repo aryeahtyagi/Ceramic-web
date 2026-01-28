@@ -10,7 +10,7 @@ export default defineNuxtConfig({
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'https://api.svrve.com',
       // Public site URL used for SEO / canonical links
       // Change via env: NUXT_PUBLIC_SITE_URL=https://svrve.com
-      siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://svrve.com'
+      siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://www.svrve.com'
     }
   },
 
@@ -37,12 +37,17 @@ export default defineNuxtConfig({
         { property: 'og:type', content: 'website' },
         { property: 'og:title', content: 'Ceramic Artistry - Handcrafted Ceramics' },
         { property: 'og:description', content: 'Discover beautiful handcrafted ceramic products. Shop unique dinnerware, vases, decorative pieces, and mugs.' },
+        { property: 'og:url', content: 'https://www.svrve.com' },
+        { property: 'og:site_name', content: 'SVRVE' },
         // Twitter
         { name: 'twitter:card', content: 'summary_large_image' },
         { name: 'twitter:title', content: 'Ceramic Artistry - Handcrafted Ceramics' },
         { name: 'twitter:description', content: 'Discover beautiful handcrafted ceramic products. Shop unique dinnerware, vases, decorative pieces, and mugs.' }
       ],
-      link: []
+      link: [
+        // Global canonical URL (can be overridden per page)
+        { rel: 'canonical', href: 'https://www.svrve.com' }
+      ]
     }
   },
 

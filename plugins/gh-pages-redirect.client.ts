@@ -1,21 +1,26 @@
 export default defineNuxtPlugin(() => {
-  // Only run this plugin if we're actually on GitHub Pages (check for base path)
-  // or if we're in development. Skip in production on custom domain.
-  const config = useRuntimeConfig()
-  const route = useRoute()
-  const router = useRouter()
-
-  // Only process redirect if we're on the root path with a redirect query param
-  // This prevents interfering with normal navigation
-  if (route.path === '/' || route.path === '') {
-    const redirect = route.query.redirect
-    if (typeof redirect === 'string' && redirect) {
-      // route.query is already decoded by vue-router, but keep this safe.
-      const target = decodeURIComponent(redirect)
-      // Only redirect if target is different from current path
-      if (target && target !== route.path) {
-        // Replace so we don't keep ?redirect= in history
-        router.replace(target).catch(() => {})
+  // Handle 404.html redirect: restore URL from ?p= query param
+  // This runs on the client side when the app loads
+  if (process.client) {
+    const route = useRoute()
+    const router = useRouter()
+    
+    // Only process on root path with ?p= param
+    if ((route.path === '/' || route.path === '') && route.query.p) {
+      const originalPath = typeof route.query.p === 'string' 
+        ? decodeURIComponent(route.query.p) 
+        : null
+      
+      if (originalPath && originalPath !== route.path) {
+        // Restore the original URL using history.replaceState (clean, no redirect chain)
+        // This removes ?p= from the address bar immediately
+        const url = new URL(originalPath, window.location.origin)
+        window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+        
+        // Navigate to the restored path (Vue Router will handle it)
+        router.replace(originalPath).catch(() => {
+          // If navigation fails, at least the URL is clean
+        })
       }
     }
   }
