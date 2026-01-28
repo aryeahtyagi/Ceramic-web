@@ -4,14 +4,16 @@ This Nuxt app calls your Spring Boot backend.
 
 ### Configure the API base URL
 
-Set this environment variable before running/building:
+Set these environment variables before running/building:
 
-- **`NUXT_PUBLIC_API_BASE`**: example `http://localhost:9090`
+- **`NUXT_PUBLIC_API_BASE`**: example `https://api.svrve.com`
+- **`NUXT_PUBLIC_SITE_URL`**: example `https://svrve.com`
 
 ### Local dev example (PowerShell)
 
 ```powershell
-$env:NUXT_PUBLIC_API_BASE="http://localhost:9090"
+$env:NUXT_PUBLIC_API_BASE="https://api.svrve.com"
+$env:NUXT_PUBLIC_SITE_URL="https://svrve.com"
 npm run dev
 ```
 

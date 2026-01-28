@@ -51,6 +51,11 @@
           </div>
         </div>
 
+        <NuxtLink to="/blog" class="menu-item" @click="closeMenu">
+          <span class="menu-icon">📝</span>
+          <span class="menu-label">Blog</span>
+        </NuxtLink>
+
         <NuxtLink to="/cart" class="menu-item" @click="closeMenu">
           <span class="menu-icon">🛒</span>
           <span class="menu-label">Cart</span>

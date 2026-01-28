@@ -42,6 +42,11 @@ The collections/products page fetches data from your backend:
 
 - **Endpoint**: `GET /collections`
 - **Configurable base URL**: set `NUXT_PUBLIC_API_BASE`
+  - Example (production): `NUXT_PUBLIC_API_BASE=https://api.svrve.com`
   - Example (local): `NUXT_PUBLIC_API_BASE=http://localhost:9090`
 
-Note: since this is a static GitHub Pages deploy, changing the API base typically means rebuilding + redeploying with a new `NUXT_PUBLIC_API_BASE` value.
+The public site URL used for SEO / canonical links is configured via:
+
+- `NUXT_PUBLIC_SITE_URL` (example: `https://svrve.com`)
+
+Note: since this is a static deploy, changing the API base or site URL typically means rebuilding + redeploying with new env values.

@@ -793,12 +793,20 @@ const safeImg = (u) => {
 
 // --- JSON-LD (client-side; SSR is off) ---
 const appBase = computed(() => String(config.app?.baseURL || '/'))
-const origin = computed(() => requestURL.origin)
+// Prefer configured public site URL for SEO so we always emit https://svrve.com links in production
+const siteOrigin = computed(() => {
+  const cfg = String(config.public.siteUrl || '').trim()
+  if (cfg) {
+    return cfg.replace(/\/$/, '')
+  }
+  // Fallback to current origin (useful in dev)
+  return requestURL.origin
+})
 
 const canonicalPath = computed(() => String(route.path || '/'))
 const canonicalUrl = computed(() => {
   const path = canonicalPath.value.replace(/^\//, '')
-  return joinURL(origin.value, appBase.value, path)
+  return joinURL(siteOrigin.value, appBase.value, path)
 })
 
 const absUrl = (u) => {
@@ -807,7 +815,7 @@ const absUrl = (u) => {
   if (s.startsWith('http://') || s.startsWith('https://')) return s
   // Public assets should respect Nuxt baseURL on GitHub Pages
   const path = s.replace(/^\//, '')
-  return joinURL(origin.value, appBase.value, path)
+  return joinURL(siteOrigin.value, appBase.value, path)
 }
 
 const priceValidUntil = computed(() => {
@@ -838,8 +846,8 @@ const additionalPropsLd = computed(() => {
 })
 
 const breadcrumbsLd = computed(() => {
-  const home = joinURL(origin.value, appBase.value)
-  const collections = joinURL(origin.value, appBase.value, 'collections')
+  const home = joinURL(siteOrigin.value, appBase.value)
+  const collections = joinURL(siteOrigin.value, appBase.value, 'collections')
   return {
     '@type': 'BreadcrumbList',
     itemListElement: [
