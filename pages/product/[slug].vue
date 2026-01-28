@@ -947,12 +947,21 @@ watchEffect(() => {
   const p = product.value
   if (!p) return
   useHead({
-    title: `${p.name} | Ceramic Artistry`,
+    // Temporary hardcoded SEO title/description (can be replaced by API-driven values later)
+    title: 'Forest Green Ceramic Dinner Set (12 Pieces) | SVRVE',
     link: canonicalUrl.value ? [{ rel: 'canonical', href: canonicalUrl.value }] : [],
     meta: [
-      { name: 'description', content: p.description || p.about || 'Ceramic product details.' },
-      { property: 'og:title', content: `${p.name} | Ceramic Artistry` },
-      { property: 'og:description', content: p.description || p.about || '' },
+      {
+        name: 'description',
+        content:
+          'Buy premium forest green ceramic dinner set (12 pieces). Microwave-safe, dishwasher-safe stoneware collection from SVRVE.'
+      },
+      { property: 'og:title', content: 'Forest Green Ceramic Dinner Set (12 Pieces) | SVRVE' },
+      {
+        property: 'og:description',
+        content:
+          'Buy premium forest green ceramic dinner set (12 pieces). Microwave-safe, dishwasher-safe stoneware collection from SVRVE.'
+      },
       ...(heroImage.value ? [{ property: 'og:image', content: absUrl(heroImage.value) }] : [])
     ]
   })
