@@ -157,6 +157,9 @@
           <div class="price-section">
             <span class="price">{{ formatPrice(offerPrice || product.price) }}</span>
             <span v-if="discountPercent" class="original-price">{{ formatPrice(product.price) }}</span>
+            <span v-if="selectedQuantity > 1" class="qty-total">
+              for {{ selectedQuantity }} pcs · {{ formatPrice(totalSelectedPrice) }}
+            </span>
           </div>
 
           <!-- Quantity Selection -->
@@ -207,7 +210,7 @@
           <!-- Expandable Sections -->
           <div class="expandable-sections">
             <div 
-              v-if="materialAndCare"
+              v-if="specifications.length"
               class="expandable-section"
               :class="{ expanded: expandedSections.material }"
             >
@@ -216,11 +219,22 @@
                 type="button"
                 @click="toggleSection('material')"
               >
-                <span>MATERIAL & CARE</span>
+                <span>MATERIAL & SPECIFICATIONS</span>
                 <span class="toggle-icon">{{ expandedSections.material ? '−' : '+' }}</span>
               </button>
               <div v-if="expandedSections.material" class="section-content">
-                <p>{{ materialAndCare }}</p>
+                <table class="specifications-table">
+                  <tbody>
+                    <tr
+                      v-for="spec in specifications"
+                      :key="spec.id"
+                      class="spec-row"
+                    >
+                      <td class="spec-label">{{ spec.label }}</td>
+                      <td class="spec-value">{{ spec.value }}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
 
@@ -342,6 +356,19 @@ const resolveImageUrl = (url) => {
   const u = String(url || '').trim()
   if (!u) return ''
   if (isBlockedImageHost(u)) return ''
+  // Replace localhost URLs with configured API base
+  if (u.includes('localhost:9090') || u.includes('localhost:')) {
+    try {
+      const urlObj = new URL(u)
+      const path = urlObj.pathname + urlObj.search
+      return `${apiBase.value}${path}`
+    } catch {
+      // If URL parsing fails, try to extract path manually
+      const match = u.match(/localhost:\d+(\/.*)/)
+      if (match) return `${apiBase.value}${match[1]}`
+      return u
+    }
+  }
   if (u.startsWith('http://') || u.startsWith('https://')) return u
   if (u.startsWith('/')) return `${apiBase.value}${u}`
   return u
@@ -681,17 +708,24 @@ const starRating = computed(() => {
   return Math.round(rating)
 })
 
-// Material & Care
-const materialAndCare = computed(() => {
+// Material & Specifications
+const specifications = computed(() => {
   const p = product.value
-  if (!p) return ''
-  const details = p.productDetails || []
-  const care = details.find(d => normalize(d?.dimension?.name) === 'care')
-  const material = details.find(d => normalize(d?.dimension?.name) === 'material')
-  const parts = []
-  if (material?.value) parts.push(`Material: ${material.value}`)
-  if (care?.value) parts.push(`Care: ${care.value}`)
-  return parts.join('. ') || 'Handcrafted with care. Follow care instructions for best results.'
+  if (!p) return []
+  const details = Array.isArray(p.productDetails) ? p.productDetails : []
+
+  return details
+    .map((d) => {
+      const label = d?.dimension?.name
+      const value = d?.value
+      if (!label || !value) return null
+      return {
+        id: d.id || `${label}-${value}`,
+        label,
+        value
+      }
+    })
+    .filter(Boolean)
 })
 
 // Expandable sections
@@ -834,6 +868,13 @@ const offerPrice = computed(() => {
   if (!d) return list
   const sale = Math.round((list * (100 - d)) / 100)
   return sale
+})
+
+const totalSelectedPrice = computed(() => {
+  const p = product.value
+  if (!p) return 0
+  const unit = offerPrice.value ?? Number(p.price || 0)
+  return unit * Math.max(1, Number(selectedQuantity.value || 1))
 })
 
 const additionalPropsLd = computed(() => {
@@ -1583,6 +1624,12 @@ watchEffect(() => {
   text-decoration: line-through;
 }
 
+.qty-total {
+  font-size: 0.875rem;
+  color: #666;
+  margin-left: auto;
+}
+
 .quantity-section {
   margin-bottom: 24px;
 }
@@ -1752,6 +1799,60 @@ watchEffect(() => {
   font-size: 0.9375rem;
   color: #666;
   line-height: 1.6;
+}
+
+/* Specifications Table */
+.specifications-table {
+  margin-top: 12px;
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.spec-row {
+  border-bottom: 1px solid #e5e5e5;
+  transition: background-color 0.2s ease;
+}
+
+.spec-row:last-child {
+  border-bottom: none;
+}
+
+.spec-row:hover {
+  background-color: #f9f9f9;
+}
+
+.spec-label {
+  font-weight: 600;
+  color: #333;
+  font-size: 0.9375rem;
+  padding: 14px 16px;
+  width: 40%;
+  vertical-align: top;
+  border-right: 1px solid #e5e5e5;
+}
+
+.spec-value {
+  color: #555;
+  font-size: 0.9375rem;
+  padding: 14px 16px;
+  vertical-align: top;
+}
+
+@media (max-width: 640px) {
+  .spec-label {
+    width: 35%;
+    padding: 12px 14px;
+    font-size: 0.875rem;
+  }
+
+  .spec-value {
+    padding: 12px 14px;
+    font-size: 0.875rem;
+  }
 }
 
 /* Zoom Button */

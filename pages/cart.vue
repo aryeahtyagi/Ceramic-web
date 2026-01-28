@@ -293,11 +293,11 @@ const syncLocalCartState = (backendData) => {
       let productImage = ''
       if (product.images && product.images.length > 0) {
         const catalogImg = product.images.find(img => img.catalogImage)
-        if (catalogImg?.imageUrl) productImage = catalogImg.imageUrl
-        else if (product.images[0]?.imageUrl) productImage = product.images[0].imageUrl
+        if (catalogImg?.imageUrl) productImage = resolveImageUrl(catalogImg.imageUrl)
+        else if (product.images[0]?.imageUrl) productImage = resolveImageUrl(product.images[0].imageUrl)
       }
       if (!productImage && product.image?.value) {
-        productImage = product.image.value
+        productImage = resolveImageUrl(product.image.value)
       }
 
       const slug = slugify(product.name)
@@ -337,18 +337,47 @@ const getFinalPrice = (product) => {
   return Math.round(product.price * (100 - discount) / 100)
 }
 
+const isBlockedImageHost = (url) => {
+  const u = String(url || '').trim()
+  if (!u) return false
+  if (u.includes('img.icons8.com')) return true
+  return false
+}
+
+const resolveImageUrl = (url) => {
+  const u = String(url || '').trim()
+  if (!u) return ''
+  if (isBlockedImageHost(u)) return ''
+  // Replace localhost URLs with configured API base
+  if (u.includes('localhost:9090') || u.includes('localhost:')) {
+    try {
+      const urlObj = new URL(u)
+      const path = urlObj.pathname + urlObj.search
+      return `${apiBase}${path}`
+    } catch {
+      // If URL parsing fails, try to extract path manually
+      const match = u.match(/localhost:\d+(\/.*)/)
+      if (match) return `${apiBase}${match[1]}`
+      return u
+    }
+  }
+  if (u.startsWith('http://') || u.startsWith('https://')) return u
+  if (u.startsWith('/')) return `${apiBase}${u}`
+  return u
+}
+
 const getProductImage = (product) => {
   if (product.images && product.images.length > 0) {
     const catalogImg = product.images.find(img => img.catalogImage)
-    if (catalogImg?.imageUrl) return catalogImg.imageUrl
-    if (product.images[0]?.imageUrl) return product.images[0].imageUrl
+    if (catalogImg?.imageUrl) return resolveImageUrl(catalogImg.imageUrl)
+    if (product.images[0]?.imageUrl) return resolveImageUrl(product.images[0].imageUrl)
   }
   
   if (product.image?.value) {
-    if (product.image.value.includes('img.icons8.com')) {
+    if (isBlockedImageHost(product.image.value)) {
       return '/images/ceramic-plate.svg'
     }
-    return product.image.value
+    return resolveImageUrl(product.image.value)
   }
   
   const type = product.productDetails?.find(d => d.dimension?.name === 'Type')?.value?.toLowerCase() || 'plate'

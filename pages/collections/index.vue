@@ -222,6 +222,19 @@ const resolveImageUrl = (url) => {
   const u = String(url || '').trim()
   if (!u) return ''
   if (isBlockedImageHost(u)) return ''
+  // Replace localhost URLs with configured API base
+  if (u.includes('localhost:9090') || u.includes('localhost:')) {
+    try {
+      const urlObj = new URL(u)
+      const path = urlObj.pathname + urlObj.search
+      return `${apiBase.value}${path}`
+    } catch {
+      // If URL parsing fails, try to extract path manually
+      const match = u.match(/localhost:\d+(\/.*)/)
+      if (match) return `${apiBase.value}${match[1]}`
+      return u
+    }
+  }
   if (u.startsWith('http://') || u.startsWith('https://')) return u
   if (u.startsWith('/')) return `${apiBase.value}${u}`
   return u
