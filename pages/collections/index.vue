@@ -141,6 +141,11 @@ import { ref, computed, watch } from 'vue'
 const config = useRuntimeConfig()
 const apiBase = computed(() => String(config.public.apiBase || '').replace(/\/$/, ''))
 
+// Debug: Log API base on client side
+if (process.client) {
+  console.log('🔧 API Base URL:', apiBase.value)
+}
+
 const route = useRoute()
 const router = useRouter()
 const cart = useCart()
@@ -154,13 +159,51 @@ const selectedCollection = computed(() => {
 })
 const query = ref('')
 
-const collections = [
-  { id: 'all', name: 'All', icon: '✨' },
-  { id: 'plates', name: 'Plates', icon: '🍽️' },
-  { id: 'bowls', name: 'Bowls', icon: '🥣' },
-  { id: 'vases', name: 'Vases', icon: '🏺' },
-  { id: 'mugs', name: 'Mugs', icon: '☕' }
-]
+// Fetch collection types from API
+const { data: typesData, pending: typesPending } = useFetch('/collections/type', {
+  baseURL: apiBase
+})
+
+// Map type value to icon
+const getTypeIcon = (typeName) => {
+  const name = String(typeName || '').toLowerCase()
+  if (name.includes('plate')) return '🍽️'
+  if (name.includes('bowl')) return '🥣'
+  if (name.includes('vase')) return '🏺'
+  if (name.includes('mug')) return '☕'
+  return '✨'
+}
+
+// Transform API response to collection format
+const collectionsBase = computed(() => {
+  const base = [{ id: 'all', name: 'All', icon: '✨', apiValue: null }]
+  
+  if (typesData.value && Array.isArray(typesData.value)) {
+    const types = typesData.value.map(item => {
+      const value = String(item?.value || '').trim()
+      if (!value) return null
+      
+      // Use lowercase with hyphens for URL id (better URL compatibility)
+      const id = value.toLowerCase().replace(/\s+/g, '-')
+      return {
+        id,
+        name: value,
+        icon: getTypeIcon(value),
+        apiValue: value // Original value from API for API calls
+      }
+    }).filter(Boolean)
+    
+    return [...base, ...types]
+  }
+  
+  // Fallback to default if API hasn't loaded yet
+  return base
+})
+
+// Collections - always return in the same order (no reordering)
+const collections = computed(() => {
+  return collectionsBase.value
+})
 
 const { data, pending, error, refresh } = useFetch('/collections', {
   baseURL: apiBase

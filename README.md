@@ -8,14 +8,29 @@ A beautiful Nuxt 3 website for showcasing and selling ceramic products.
 # Install dependencies
 npm install
 
-# Run development server
+# Run development server (default - uses production API)
 npm run dev
 
-# Build for production
+# Run development server with LOCAL backend (localhost:9090)
+npm run dev:local
+
+# Run development server with PRODUCTION backend (api.svrve.com)
+npm run dev:prod
+
+# Build for production (default - uses production API)
 npm run build
 
-# Generate static site for GitHub Pages
+# Build with LOCAL backend
+npm run build:local
+
+# Build with PRODUCTION backend
+npm run build:prod
+
+# Generate static site for GitHub Pages (default - uses production API)
 npm run generate
+
+# Generate static site with PRODUCTION backend
+npm run generate:prod
 
 # Preview production build
 npm run preview
@@ -41,12 +56,17 @@ The GitHub Actions workflow will automatically:
 The collections/products page fetches data from your backend:
 
 - **Endpoint**: `GET /collections`
-- **Configurable base URL**: set `NUXT_PUBLIC_API_BASE`
-  - Example (production): `NUXT_PUBLIC_API_BASE=https://api.svrve.com`
-  - Example (local): `NUXT_PUBLIC_API_BASE=http://localhost:9090`
+- **Configurable base URL**: automatically set via npm scripts
+  - **Production**: `https://api.svrve.com` (used by `npm run dev:prod` and `npm run build:prod`)
+  - **Local**: `http://localhost:9090` (used by `npm run dev:local` and `npm run build:local`)
 
-The public site URL used for SEO / canonical links is configured via:
+The public site URL used for SEO / canonical links is also configured via the scripts:
+- **Production**: `https://www.svrve.com`
+- **Local**: `http://localhost:3000`
 
-- `NUXT_PUBLIC_SITE_URL` (example: `https://svrve.com`)
+### Quick Start
 
-Note: since this is a static deploy, changing the API base or site URL typically means rebuilding + redeploying with new env values.
+- **For local development**: `npm run dev:local` (connects to `localhost:9090`)
+- **For production testing**: `npm run dev:prod` (connects to `api.svrve.com`)
+
+Note: The default `npm run dev` uses production settings. Use the `:local` or `:prod` variants for explicit environment control.

@@ -1,4 +1,11 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import dotenv from 'dotenv'
+import { resolve } from 'path'
+
+// Load .env.local file if it exists
+const envLocalPath = resolve(process.cwd(), '.env.local')
+dotenv.config({ path: envLocalPath })
+
 export default defineNuxtConfig({
   // Devtools/HMR can prevent bfcache in Lighthouse; keep it dev-only.
   devtools: { enabled: process.env.NODE_ENV !== 'production' },
@@ -7,9 +14,11 @@ export default defineNuxtConfig({
     public: {
       // Backend API base URL (prod default points to live API)
       // Change via env: NUXT_PUBLIC_API_BASE=https://api.svrve.com
+      // Or create .env.local file with: NUXT_PUBLIC_API_BASE=http://localhost:9090
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'https://api.svrve.com',
       // Public site URL used for SEO / canonical links
       // Change via env: NUXT_PUBLIC_SITE_URL=https://svrve.com
+      // Or create .env.local file with: NUXT_PUBLIC_SITE_URL=http://localhost:3000
       siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://www.svrve.com'
     }
   },

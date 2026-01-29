@@ -73,7 +73,7 @@
                 :key="`gallery-${idx}-${img}`"
                 class="hero-img"
                 :src="img"
-                :alt="`${product.name} image ${idx + 1}`"
+                :alt="product.name"
                 :loading="idx === 0 ? 'eager' : 'lazy'"
                 :fetchpriority="idx === 0 ? 'high' : undefined"
                 decoding="async"
@@ -257,7 +257,7 @@
 
       <!-- Zoom Modal -->
       <Transition name="zoom-modal">
-        <div v-if="showZoomModal" class="zoom-modal-overlay" @click="closeZoomModal">
+        <div v-if="showZoomModal" class="zoom-modal-overlay" @click="handleOverlayClick">
           <div class="zoom-modal-content" @click.stop>
             <button class="zoom-close-btn" type="button" @click="closeZoomModal" aria-label="Close zoom">
               ×
@@ -310,6 +310,12 @@ const id = computed(() => {
 })
 
 const { data, pending, error, refresh } = useFetch(() => `/collections/${id.value}`, {
+  baseURL: apiBase,
+  immediate: computed(() => Boolean(id.value))
+})
+
+// Fetch SEO data for the product
+const { data: seoData } = useFetch(() => `/product-seo/${id.value}`, {
   baseURL: apiBase,
   immediate: computed(() => Boolean(id.value))
 })
@@ -757,6 +763,13 @@ const openZoomModal = () => {
   }
 }
 
+const handleOverlayClick = (e) => {
+  // Only close if clicking directly on the overlay (not on content or image)
+  if (e.target === e.currentTarget) {
+    closeZoomModal()
+  }
+}
+
 const closeZoomModal = () => {
   showZoomModal.value = false
   resetZoom()
@@ -886,6 +899,14 @@ const additionalPropsLd = computed(() => {
   }))
 })
 
+// Helper function to get SEO value with fallback
+const getSeoValue = (apiValue, fallback) => {
+  if (apiValue && String(apiValue).trim() !== '') {
+    return String(apiValue).trim()
+  }
+  return fallback
+}
+
 const breadcrumbsLd = computed(() => {
   const home = joinURL(siteOrigin.value, appBase.value)
   const collections = joinURL(siteOrigin.value, appBase.value, 'collections')
@@ -903,7 +924,15 @@ const productJsonLd = computed(() => {
   const p = product.value
   if (!p) return null
 
-  const desc = p.description || p.about || 'Handcrafted ceramic product.'
+  const seo = seoData.value || {}
+  
+  // Get schema type from API, fallback to 'Product'
+  const schemaType = (seo.schemaType && String(seo.schemaType).trim() !== '') 
+    ? String(seo.schemaType).trim() 
+    : 'Product'
+
+  // Use metaDescription from API if available, otherwise fallback to product description
+  const desc = getSeoValue(seo.metaDescription, p.description || p.about || 'Handcrafted ceramic product.')
   const imgs = (gallery.value.length ? gallery.value : [placeholderForCategory(p.category)]).map(absUrl).filter(Boolean)
   const sku = String(p.id ?? '')
 
@@ -922,7 +951,7 @@ const productJsonLd = computed(() => {
   const graph = [
     breadcrumbsLd.value,
     {
-      '@type': 'Product',
+      '@type': schemaType,
       '@id': `${canonicalUrl.value}#product`,
       mainEntityOfPage: { '@type': 'WebPage', '@id': canonicalUrl.value },
       name: p.name,
@@ -946,24 +975,58 @@ const productJsonLd = computed(() => {
 watchEffect(() => {
   const p = product.value
   if (!p) return
+  
+  const seo = seoData.value || {}
+  
+  // Get SEO values from API, fallback to hardcoded/default values
+  const seoTitle = getSeoValue(seo.seoTitle, 'Forest Green Ceramic Dinner Set (12 Pieces) | SVRVE')
+  const metaDesc = getSeoValue(seo.metaDescription, 'Buy premium forest green ceramic dinner set (12 pieces). Microwave-safe, dishwasher-safe stoneware collection from SVRVE.')
+  const ogTitle = getSeoValue(seo.ogTitle, 'Forest Green Ceramic Dinner Set (12 Pieces) | SVRVE')
+  const ogDesc = getSeoValue(seo.ogDescription, 'Buy premium forest green ceramic dinner set (12 pieces). Microwave-safe, dishwasher-safe stoneware collection from SVRVE.')
+  const ogImage = getSeoValue(seo.ogImageUrl, heroImage.value ? absUrl(heroImage.value) : '')
+  const canonical = getSeoValue(seo.canonicalUrl, canonicalUrl.value)
+  
+  // Build meta tags array
+  const metaTags = [
+    { name: 'description', content: metaDesc }
+  ]
+  
+  // Add keywords if available
+  if (seo.primaryKeyword && String(seo.primaryKeyword).trim() !== '') {
+    const keywords = [String(seo.primaryKeyword).trim()]
+    if (seo.secondaryKeywords && String(seo.secondaryKeywords).trim() !== '') {
+      keywords.push(String(seo.secondaryKeywords).trim())
+    }
+    metaTags.push({ name: 'keywords', content: keywords.join(', ') })
+  }
+  
+  // Add OG tags
+  metaTags.push({ property: 'og:title', content: ogTitle })
+  metaTags.push({ property: 'og:description', content: ogDesc })
+  
+  // Add OG image if available
+  if (ogImage) {
+    metaTags.push({ property: 'og:image', content: ogImage })
+  }
+  
+  // Add robots meta if indexStatus is set
+  if (seo.indexStatus && String(seo.indexStatus).trim() !== '') {
+    const indexStatus = String(seo.indexStatus).trim().toLowerCase()
+    if (indexStatus === 'noindex' || indexStatus === 'noindex, nofollow') {
+      metaTags.push({ name: 'robots', content: indexStatus })
+    }
+  }
+  
+  // Build link tags
+  const linkTags = []
+  if (canonical) {
+    linkTags.push({ rel: 'canonical', href: canonical })
+  }
+  
   useHead({
-    // Temporary hardcoded SEO title/description (can be replaced by API-driven values later)
-    title: 'Forest Green Ceramic Dinner Set (12 Pieces) | SVRVE',
-    link: canonicalUrl.value ? [{ rel: 'canonical', href: canonicalUrl.value }] : [],
-    meta: [
-      {
-        name: 'description',
-        content:
-          'Buy premium forest green ceramic dinner set (12 pieces). Microwave-safe, dishwasher-safe stoneware collection from SVRVE.'
-      },
-      { property: 'og:title', content: 'Forest Green Ceramic Dinner Set (12 Pieces) | SVRVE' },
-      {
-        property: 'og:description',
-        content:
-          'Buy premium forest green ceramic dinner set (12 pieces). Microwave-safe, dishwasher-safe stoneware collection from SVRVE.'
-      },
-      ...(heroImage.value ? [{ property: 'og:image', content: absUrl(heroImage.value) }] : [])
-    ]
+    title: seoTitle,
+    link: linkTags,
+    meta: metaTags
   })
 })
 
@@ -1661,25 +1724,34 @@ watchEffect(() => {
 }
 
 .qty-btn {
-  width: 40px;
-  height: 40px;
+  width: 50px;
+  height: 50px;
   border: none;
   background: #fff;
   color: #333;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
+  font-weight: 500;
   cursor: pointer;
   transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .qty-btn:hover {
   background: #f5f5f5;
 }
 
+.qty-btn:active {
+  background: #e0e0e0;
+  transform: scale(0.95);
+}
+
 .qty-value {
-  min-width: 60px;
+  min-width: 70px;
   text-align: center;
   font-weight: 500;
-  font-size: 1rem;
+  font-size: 1.125rem;
 }
 
 .action-buttons {
@@ -1910,7 +1982,7 @@ watchEffect(() => {
 
 .zoom-modal-content {
   position: relative;
-  width: 100%;
+  width: fit-content;
   max-width: 90vw;
   max-height: 90vh;
   display: flex;
@@ -1935,13 +2007,15 @@ watchEffect(() => {
 }
 
 .zoom-image-container {
-  width: 100%;
-  height: 80vh;
+  width: fit-content;
+  max-width: 90vw;
+  max-height: 80vh;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: grab;
+  margin: 0 auto;
 }
 
 .zoom-image-container:active {
@@ -1949,8 +2023,10 @@ watchEffect(() => {
 }
 
 .zoom-image {
-  max-width: 100%;
-  max-height: 100%;
+  max-width: 90vw;
+  max-height: 80vh;
+  width: auto;
+  height: auto;
   object-fit: contain;
   user-select: none;
 }
