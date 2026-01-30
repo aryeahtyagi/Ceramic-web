@@ -1,0 +1,1 @@
+import{af as o,ab as n}from"./BP8Zqz1I.js";const i=o(e=>{if(!e.path.startsWith("/collections/"))return;const t=e.path.split("/").filter(Boolean);if(t.length<2||t[0]!=="collections")return;const r=t[1],a=r.toLowerCase();if(r!==a)return n({path:`/collections/${a}`,query:e.query,hash:e.hash,replace:!0})});export{i as default};

@@ -1,1 +1,0 @@
-import{_ as t,o as n,c as o,ag as a}from"./BymtEYvB.js";const c={},s={id:"main-content"};function r(e,_){return n(),o("main",s,[a(e.$slots,"default")])}const f=t(c,[["render",r]]);export{f as default};
