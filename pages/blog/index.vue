@@ -41,55 +41,69 @@
 
       <!-- Loading State -->
       <div v-if="isLoading" class="loading-state">
+        <div class="loading-spinner"></div>
         <p class="loading-text">Loading blogs...</p>
-        <p style="font-size: 0.875rem; color: #666; margin-top: 0.5rem;">
-          Debug: pending={{ pending }}, isLoading={{ isLoading }}, error={{ error ? 'Yes' : 'No' }}, data={{ blogsData ? 'Yes' : 'No' }}
-        </p>
       </div>
 
       <!-- Error State -->
       <div v-else-if="error" class="error-state">
+        <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
         <p class="error-text">Failed to load blogs. Please try again later.</p>
         <button class="retry-btn" type="button" @click="refresh()">Retry</button>
       </div>
 
       <!-- Blog Posts Grid -->
-      <div v-else class="blog-grid">
-        <!-- Debug: Show count -->
-        <div style="grid-column: 1 / -1; padding: 1rem; background: #f0f0f0; margin-bottom: 1rem; font-size: 0.875rem;">
-          <strong>Debug:</strong> Showing {{ blogPosts.length }} of {{ blogsData?.length || 0 }} blogs
-        </div>
-        
+      <div v-else-if="blogPosts.length > 0" class="blog-grid">
         <article
           v-for="post in blogPosts"
           :key="post.id"
           class="blog-card"
         >
-          <a 
-            :href="`/blog/${post.slug}`"
+          <NuxtLink 
+            :to="`/blog/${post.id}/${post.titleSlug}`"
             class="blog-card-link"
-            @click.prevent="handleBlogClick(post.slug)"
           >
-            <div v-if="post.image && resolveImageUrl(post.image)" class="blog-image">
-              <img
-                :src="resolveImageUrl(post.image)"
-                :alt="post.title"
-                loading="lazy"
-                @error="handleImageError($event)"
-                @load="handleImageLoad($event)"
-              />
+            <div v-if="post.image && resolveImageUrl(post.image)" class="blog-image-wrapper">
+              <div class="blog-image">
+                <img
+                  :src="resolveImageUrl(post.image)"
+                  :alt="post.title"
+                  loading="lazy"
+                  @error="handleImageError($event)"
+                />
+              </div>
+              <div class="image-overlay"></div>
+            </div>
+            <div v-else class="blog-image-placeholder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
             </div>
             <div class="blog-content">
               <div class="blog-meta">
-                <span class="blog-date">{{ formatDate(post.date) }}</span>
                 <span class="blog-category">{{ post.category }}</span>
+                <span class="meta-separator">•</span>
+                <span class="blog-date">{{ formatDate(post.date) }}</span>
+                <span v-if="post.readingTime" class="meta-separator">•</span>
                 <span v-if="post.readingTime" class="blog-reading-time">{{ post.readingTime }} min read</span>
               </div>
               <h2 class="blog-title">{{ post.title }}</h2>
               <p class="blog-excerpt">{{ post.excerpt }}</p>
-              <span class="read-more">Read More →</span>
+              <div class="read-more-wrapper">
+                <span class="read-more">Read Article</span>
+                <svg class="read-more-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                  <polyline points="12 5 19 12 12 19"/>
+                </svg>
+              </div>
             </div>
-          </a>
+          </NuxtLink>
         </article>
       </div>
 
@@ -123,21 +137,14 @@ const fetchBlogs = async () => {
   try {
     pending.value = true
     error.value = null
-    console.log('[Blog List] Fetching blogs from:', `${apiBase.value}/blogs`)
     
     const response = await $fetch('/blogs', {
       baseURL: apiBase.value
     })
     
-    console.log('[Blog List] Raw response:', response)
-    console.log('[Blog List] Response type:', typeof response)
-    console.log('[Blog List] Is array?', Array.isArray(response))
-    
     blogsData.value = response
     pending.value = false
-    console.log('[Blog List] Fetch complete, blogsData set to:', blogsData.value)
   } catch (err) {
-    console.error('[Blog List] Fetch error:', err)
     error.value = err
     pending.value = false
   }
@@ -152,72 +159,46 @@ const refresh = () => {
   fetchBlogs()
 }
 
-// Watch for data changes
-watch(blogsData, (newVal) => {
-  console.log('[Blog List] blogsData changed:', newVal)
-  console.log('[Blog List] Type:', typeof newVal)
-  console.log('[Blog List] Is array?', Array.isArray(newVal))
-  if (newVal) {
-    console.log('[Blog List] Value length:', Array.isArray(newVal) ? newVal.length : 'N/A')
-  }
-}, { immediate: true })
-
-// Watch for pending changes
-watch(pending, (newVal) => {
-  console.log('[Blog List] Pending state changed:', newVal)
-})
-
-// Watch for error changes
-watch(error, (newVal) => {
-  console.log('[Blog List] Error state changed:', newVal)
-})
-
-// Force pending to false if we have data (workaround for useFetch issue)
+// Loading state
 const isLoading = computed(() => {
-  // Check if we have data (even if pending is still true)
   const hasData = blogsData.value !== null && blogsData.value !== undefined
-  console.log('[Blog List] isLoading check - hasData:', hasData, 'pending:', pending.value)
   if (hasData) {
-    return false // If we have data, we're not loading
+    return false
   }
   return pending.value
 })
 
+// Slugify function for URL-friendly titles
+const slugify = (s) =>
+  String(s || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
 // Transform API data to display format
 const blogPosts = computed(() => {
   if (!blogsData.value || !Array.isArray(blogsData.value)) {
-    console.log('[Blog List] No blogs data or not an array')
     return []
   }
   
-  console.log('[Blog List] Total blogs from API:', blogsData.value.length)
-  console.log('[Blog List] Blog statuses:', blogsData.value.map(b => ({ id: b.id, status: b.status, title: b.title })))
-  
-  // Show all blogs regardless of status for now (we can filter later if needed)
   const filtered = blogsData.value.filter(blog => {
-    // Check multiple possible status values
     const status = String(blog.status || '').toLowerCase()
-    // Show all blogs - remove status filter temporarily to debug
-    return true
-    // return status === 'published' || status === 'publish' || !status
+    return status === 'published' || status === 'publish' || !status
   })
   
-  console.log('[Blog List] Filtered blogs:', filtered.length)
-  console.log('[Blog List] Blog IDs:', filtered.map(b => b.id))
-  
-  const mapped = filtered.map(blog => ({
+  return filtered.map(blog => ({
     id: blog.id,
     slug: blog.slug || `blog-${blog.id}`,
     title: blog.title || 'Untitled',
-    excerpt: blog.metaDescription || blog.content?.substring(0, 150) || 'No description available.',
-      image: blog.featuredImageUrl || '',
+    titleSlug: slugify(blog.title || 'Untitled'),
+    excerpt: blog.metaDescription || (blog.content ? blog.content.replace(/<[^>]*>/g, '').substring(0, 150) + '...' : 'No description available.'),
+    image: blog.featuredImageUrl || '',
     date: blog.publishedAt ? new Date(blog.publishedAt) : new Date(blog.createdAt || Date.now()),
     category: blog.category || 'Uncategorized',
     readingTime: blog.readingTime || null
   }))
-  
-  console.log('[Blog List] Mapped blog posts:', mapped.length)
-  return mapped
 })
 
 // Format date for display
@@ -236,39 +217,12 @@ const formatDate = (date) => {
 
 // Handle image errors
 const handleImageError = (event) => {
-  console.log('[Blog List] Image failed to load:', event.target.src)
-  // Hide the image or show a simple placeholder div instead
   event.target.style.display = 'none'
-  // Create a placeholder div if parent doesn't have one
-  const parent = event.target.parentElement
-  if (parent && !parent.querySelector('.image-placeholder')) {
-    const placeholder = document.createElement('div')
-    placeholder.className = 'image-placeholder'
-    placeholder.style.cssText = 'width: 100%; height: 200px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #999;'
-    placeholder.textContent = 'Image not available'
-    parent.appendChild(placeholder)
+  const parent = event.target.closest('.blog-image-wrapper')
+  if (parent) {
+    parent.classList.add('has-error')
   }
-  event.target.onerror = null // Prevent infinite loop
-}
-
-// Handle image load
-const handleImageLoad = (event) => {
-  console.log('[Blog List] Image loaded successfully:', event.target.src)
-}
-
-// Handle blog click
-const handleBlogClick = async (slug) => {
-  const targetPath = `/blog/${slug}`
-  try {
-    await router.push(targetPath)
-  } catch (error) {
-    console.error('[Blog List] Navigation error:', error)
-    try {
-      await router.replace(targetPath)
-    } catch (err) {
-      console.error('[Blog List] Replace also failed:', err)
-    }
-  }
+  event.target.onerror = null
 }
 
 // Helper to resolve image URLs (handle localhost)
@@ -455,28 +409,32 @@ useHead({
 /* Blog Grid */
 .blog-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 2rem;
-  margin-top: 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 2.5rem;
+  margin-top: 3rem;
 }
 
 @media (max-width: 768px) {
   .blog-grid {
     grid-template-columns: 1fr;
-    gap: 1.5rem;
+    gap: 2rem;
   }
 }
 
 /* Blog Card */
 .blog-card {
   background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  transition: border-color 0.2s;
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .blog-card:hover {
-  border-color: #2c2c2c;
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+  border-color: rgba(0, 0, 0, 0.12);
 }
 
 .blog-card-link {
@@ -485,83 +443,152 @@ useHead({
   color: inherit;
 }
 
+.blog-image-wrapper {
+  position: relative;
+  width: 100%;
+  height: 240px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+}
+
+.blog-image-wrapper.has-error {
+  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+}
+
 .blog-image {
   width: 100%;
-  height: 200px;
-  overflow: hidden;
-  background: #f8f8f8;
+  height: 100%;
+  position: relative;
 }
 
 .blog-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .blog-card:hover .blog-image img {
-  transform: scale(1.05);
+  transform: scale(1.1);
+}
+
+.image-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.02) 100%);
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.blog-image-placeholder {
+  width: 100%;
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+  color: #ccc;
+}
+
+.blog-image-placeholder svg {
+  width: 64px;
+  height: 64px;
 }
 
 .blog-content {
-  padding: 1.5rem;
+  padding: 2rem;
 }
 
 .blog-meta {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.75rem;
-  color: #666;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.8125rem;
+  color: #888;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.05em;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.blog-category {
+  color: #2c2c2c;
+  font-weight: 600;
+}
+
+.meta-separator {
+  color: #ccc;
 }
 
 .blog-date {
   font-weight: 400;
 }
 
-.blog-category {
-  font-weight: 500;
-  color: #2c2c2c;
-}
-
 .blog-reading-time {
   font-weight: 400;
-  color: #999;
 }
 
 .blog-title {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 600;
-  color: #2c2c2c;
-  margin: 0 0 0.75rem;
-  line-height: 1.4;
+  color: #1a1a1a;
+  margin: 0 0 1rem;
+  line-height: 1.3;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  transition: color 0.2s;
+}
+
+.blog-card:hover .blog-title {
+  color: #000;
 }
 
 .blog-excerpt {
   font-size: 0.9375rem;
   color: #666;
-  line-height: 1.6;
-  margin: 0 0 1rem;
+  line-height: 1.7;
+  margin: 0 0 1.5rem;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.read-more-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #2c2c2c;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  transition: all 0.2s;
 }
 
 .read-more {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #2c2c2c;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   transition: color 0.2s;
 }
 
-.blog-card:hover .read-more {
+.read-more-arrow {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  transition: transform 0.2s;
+}
+
+.blog-card:hover .read-more-wrapper {
   color: #000;
+}
+
+.blog-card:hover .read-more-arrow {
+  transform: translateX(4px);
 }
 
 /* Empty State */
@@ -579,7 +606,24 @@ useHead({
 /* Loading State */
 .loading-state {
   text-align: center;
-  padding: 4rem 1rem;
+  padding: 6rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-top-color: #2c2c2c;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .loading-text {
@@ -591,13 +635,23 @@ useHead({
 /* Error State */
 .error-state {
   text-align: center;
-  padding: 4rem 1rem;
+  padding: 6rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.error-icon {
+  width: 64px;
+  height: 64px;
+  color: #d32f2f;
+  margin-bottom: 0.5rem;
 }
 
 .error-text {
   font-size: 1rem;
   color: #d32f2f;
-  margin-bottom: 1rem;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
