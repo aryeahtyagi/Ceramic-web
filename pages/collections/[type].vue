@@ -417,13 +417,147 @@ const productUrl = (product) => {
   return `/product/${slug}-${product.id}`
 }
 
-// SEO
+// SEO and Structured Data
+const siteUrl = config.public.siteUrl || (typeof window !== 'undefined' ? window.location.origin : '')
+
 const collectionTitle = computed(() => {
   if (currentType.value === 'all') return 'Collections'
   const c = collectionsBase.value.find(x => x.id === currentType.value)
   return c ? `${c.name} Collection` : 'Collections'
 })
 
+// Watch products and generate schema
+watch([() => filteredProducts.value, () => currentType.value], ([products, type]) => {
+  if (!products || products.length === 0) return
+  
+  const currentCollection = collectionsBase.value.find(x => x.id === type)
+  const collectionName = currentCollection?.name || 'All Products'
+  const pageTitle = type === 'all' ? 'Ceramic Collections - Handcrafted Ceramics' : `${collectionName} Collection - Handcrafted Ceramic ${collectionName}`
+  const pageDescription = type === 'all' 
+    ? 'Discover beautiful handcrafted ceramic products. Shop unique dinnerware, vases, decorative pieces, and mugs.'
+    : `Browse our collection of handcrafted ceramic ${collectionName.toLowerCase()}. Each piece is carefully crafted by skilled artisans.`
+  
+  const currentUrl = typeof window !== 'undefined' ? window.location.href : `${siteUrl}/collections/${type}`
+  
+  // Build CollectionPage schema
+  const collectionPageSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: pageTitle,
+    description: pageDescription,
+    url: currentUrl,
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: products.length,
+      itemListElement: products.map((product, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        item: {
+          '@type': 'Product',
+          '@id': typeof window !== 'undefined' ? `${window.location.origin}${productUrl(product)}` : `${siteUrl}${productUrl(product)}`,
+          name: product.name,
+          description: product.description || ''
+        }
+      }))
+    }
+  }
+  
+  // Build individual Product schemas
+  const productSchemas = products.map(product => {
+    const productImage = resolveImageUrl(product.image)
+    const productUrlFull = typeof window !== 'undefined' ? `${window.location.origin}${productUrl(product)}` : `${siteUrl}${productUrl(product)}`
+    
+    // Get catalog image or first image from raw product data
+    const catalogImage = product.raw?.images?.find(img => img.catalogImage) || product.raw?.images?.[0]
+    const imageUrl = catalogImage?.imageUrl ? resolveImageUrl(catalogImage.imageUrl) : productImage
+    
+    const productSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: product.name,
+      description: product.description || product.raw?.about || '',
+      image: imageUrl ? [imageUrl] : undefined,
+      url: productUrlFull,
+      sku: String(product.id),
+      brand: {
+        '@type': 'Brand',
+        name: 'SVRVE'
+      },
+      category: collectionName,
+      offers: {
+        '@type': 'Offer',
+        price: String(product.price),
+        priceCurrency: 'INR',
+        availability: 'https://schema.org/InStock',
+        url: productUrlFull
+      }
+    }
+    
+    // Add discount information if available
+    if (product.discountPercent && product.raw?.discounts) {
+      productSchema.offers.priceValidUntil = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 60 days from now
+    }
+    
+    // Remove undefined values
+    Object.keys(productSchema).forEach(key => {
+      if (productSchema[key] === undefined) {
+        delete productSchema[key]
+      }
+    })
+    if (productSchema.offers) {
+      Object.keys(productSchema.offers).forEach(key => {
+        if (productSchema.offers[key] === undefined) {
+          delete productSchema.offers[key]
+        }
+      })
+    }
+    
+    return productSchema
+  })
+  
+  // Build Organization schema
+  const organizationSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'SVRVE',
+    url: siteUrl,
+    logo: `${siteUrl}/logo.png`,
+    sameAs: []
+  }
+  
+  // Build script tags for all schemas
+  const scriptTags = [
+    {
+      type: 'application/ld+json',
+      children: JSON.stringify(collectionPageSchema)
+    },
+    {
+      type: 'application/ld+json',
+      children: JSON.stringify(organizationSchema)
+    }
+  ]
+  
+  // Add individual product schemas
+  productSchemas.forEach(schema => {
+    scriptTags.push({
+      type: 'application/ld+json',
+      children: JSON.stringify(schema)
+    })
+  })
+  
+  useHead({
+    title: pageTitle,
+    meta: [
+      {
+        name: 'description',
+        content: pageDescription
+      }
+    ],
+    script: scriptTags
+  })
+}, { immediate: true })
+
+// Initial SEO
 useHead({
   title: computed(() => {
     if (currentType.value === 'all') return 'Ceramic Collections - Handcrafted Ceramics'
@@ -442,10 +576,6 @@ useHead({
           ? `Browse our collection of handcrafted ceramic ${c.name.toLowerCase()}. Each piece is carefully crafted by skilled artisans.`
           : 'Discover beautiful handcrafted ceramic products.'
       })
-    },
-    {
-      name: 'robots',
-      content: 'noindex, nofollow'
     }
   ]
 })

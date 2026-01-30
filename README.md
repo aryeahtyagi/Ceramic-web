@@ -61,7 +61,7 @@ The collections/products page fetches data from your backend:
   - **Local**: `http://localhost:9090` (used by `npm run dev:local` and `npm run build:local`)
 
 The public site URL used for SEO / canonical links is also configured via the scripts:
-- **Production**: `https://www.svrve.com`
+- **Production**: `https://svrve.com`
 - **Local**: `http://localhost:3000`
 
 ### Quick Start

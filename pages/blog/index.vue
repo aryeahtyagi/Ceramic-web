@@ -245,7 +245,150 @@ const resolveImageUrl = (url) => {
   return u
 }
 
-// SEO
+// SEO and Structured Data
+const siteUrl = config.public.siteUrl || (typeof window !== 'undefined' ? window.location.origin : '')
+
+// Watch blog posts and generate schema
+watch(() => blogPosts.value, (posts) => {
+  if (!posts || posts.length === 0) return
+  
+  // Build CollectionPage schema for the blog list
+  const collectionPageSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'Blog - SVRVE',
+    description: 'Discover stories, tips, and insights about ceramics, craftsmanship, and design.',
+    url: typeof window !== 'undefined' ? window.location.href : `${siteUrl}/blog`,
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: posts.length,
+      itemListElement: posts.map((post, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        item: {
+          '@type': 'BlogPosting',
+          '@id': typeof window !== 'undefined' ? `${window.location.origin}/blog/${post.id}/${post.titleSlug}` : `${siteUrl}/blog/${post.id}/${post.titleSlug}`,
+          headline: post.title,
+          description: post.excerpt,
+          image: post.image ? resolveImageUrl(post.image) : undefined,
+          datePublished: post.date ? new Date(post.date).toISOString() : undefined,
+          author: {
+            '@type': 'Person',
+            name: 'Arya Tyagi'
+          },
+          publisher: {
+            '@type': 'Organization',
+            name: 'SVRVE',
+            url: siteUrl
+          }
+        }
+      }))
+    }
+  }
+  
+  // Build individual BlogPosting schemas for each post
+  const blogPostingSchemas = posts.map(post => {
+    const postUrl = typeof window !== 'undefined' ? `${window.location.origin}/blog/${post.id}/${post.titleSlug}` : `${siteUrl}/blog/${post.id}/${post.titleSlug}`
+    
+    const schema = {
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: post.title,
+      description: post.excerpt,
+      url: postUrl,
+      datePublished: post.date ? new Date(post.date).toISOString() : undefined,
+      author: {
+        '@type': 'Person',
+        name: 'Arya Tyagi'
+      },
+      publisher: {
+        '@type': 'Organization',
+        name: 'SVRVE',
+        url: siteUrl,
+        logo: {
+          '@type': 'ImageObject',
+          url: `${siteUrl}/logo.png`
+        }
+      },
+      mainEntityOfPage: {
+        '@type': 'WebPage',
+        '@id': postUrl
+      },
+      articleSection: post.category || undefined,
+      inLanguage: 'en-IN'
+    }
+    
+    if (post.image) {
+      schema.image = resolveImageUrl(post.image)
+    }
+    
+    // Remove undefined values
+    Object.keys(schema).forEach(key => {
+      if (schema[key] === undefined) {
+        delete schema[key]
+      }
+    })
+    if (schema.publisher.logo && !schema.publisher.logo.url) {
+      delete schema.publisher.logo
+    }
+    
+    return schema
+  })
+  
+  // Build Organization schema
+  const organizationSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'SVRVE',
+    url: siteUrl,
+    logo: `${siteUrl}/logo.png`,
+    sameAs: []
+  }
+  
+  // Build Person schema for author
+  const personSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Person',
+    name: 'Arya Tyagi'
+  }
+  
+  // Build script tags for all schemas
+  const scriptTags = [
+    {
+      type: 'application/ld+json',
+      children: JSON.stringify(collectionPageSchema)
+    },
+    {
+      type: 'application/ld+json',
+      children: JSON.stringify(organizationSchema)
+    },
+    {
+      type: 'application/ld+json',
+      children: JSON.stringify(personSchema)
+    }
+  ]
+  
+  // Add individual blog posting schemas
+  blogPostingSchemas.forEach(schema => {
+    scriptTags.push({
+      type: 'application/ld+json',
+      children: JSON.stringify(schema)
+    })
+  })
+  
+  useHead({
+    title: 'Blog - SVRVE',
+    meta: [
+      {
+        name: 'description',
+        content: 'Discover stories, tips, and insights about ceramics, craftsmanship, and design.'
+      }
+    ],
+    script: scriptTags
+  })
+}, { immediate: true })
+
+// Initial SEO
 useHead({
   title: 'Blog - SVRVE',
   meta: [
