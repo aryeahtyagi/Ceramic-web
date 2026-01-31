@@ -1,0 +1,30 @@
+# LLMs Content Index for SVRVE
+# Website: https://svrve.com
+# Focus: Handmade ceramic kitchenware, guides, tutorials, products
+
+User-agent: *
+
+# Homepage
+Allow: /
+
+
+# Main Blog Guides
+Allow: /blog/1/how-to-make-ceramic-at-home-for-beginners-without-a-pottery-wheel
+
+# Future Blog Pattern (Allows all blog posts)
+Allow: /blog/
+
+# Product Categories
+Allow: /collections/plates
+Allow: /collections/mugs
+Allow: /collections/dinner-sets
+Allow: /collections/kitchenware
+
+# Collections / Featured Pages
+Allow: /collections
+
+# Sitemap
+Sitemap: https://svrve.com/sitemap.xml
+
+# Crawl Settings
+Crawl-delay: 2
