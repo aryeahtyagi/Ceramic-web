@@ -82,3 +82,30 @@ The public site URL used for SEO / canonical links is also configured via the sc
 - **For production testing**: `npm run dev:prod` (connects to `api.svrve.com`)
 
 Note: The default `npm run dev` uses production settings. Use the `:local` or `:prod` variants for explicit environment control.
+
+## Going live (production)
+
+Use the **production API** and site URL when deploying:
+
+- **API**: `https://api.svrve.com`
+- **Site**: `https://svrve.com`
+
+**Build and run (SSR server):**
+```bash
+npm run build:prod   # build with prod API + site URL
+npm run start       # run the built app
+```
+
+**One-step deploy (build + start):**
+```bash
+npm run deploy
+```
+
+**Static export (e.g. GitHub Pages):**
+```bash
+npm run generate:prod
+```
+
+When going live, either:
+- Do **not** use a `.env.local` that points to a local API, or
+- Remove/rename `.env.local` before building so the prod defaults in `build:prod` / `generate:prod` are used.

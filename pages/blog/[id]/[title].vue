@@ -96,7 +96,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onScopeDispose } from 'vue'
 
 const route = useRoute()
 const config = useRuntimeConfig()
@@ -105,23 +105,33 @@ const siteUrl = String(config.public.siteUrl || 'https://svrve.com').replace(/\/
 
 const blogId = route.params.id
 
-// Server-side fetch: blog by ID (runs on server so View Source has full HTML)
-const { data: blog, pending, error, refresh } = await useFetch(() => {
-  if (!blogId) return null
-  return `${apiBase}/blog/${blogId}`
-}, {
-  key: `blog-${blogId}`,
+// Server-side fetch: blog by ID — use string URL so navigation from list works
+const blogUrl = blogId ? `${apiBase}/blog/${blogId}` : null
+const { data: blog, pending, error, refresh } = await useFetch(blogUrl, {
+  key: `blog-${blogId || 'missing'}`,
 })
 
-// Server-side fetch: related products (runs on server after blog is available)
-const categoryForRelated = blog.value?.collectionCategory ?? null
-const { data: relatedProductsResponse } = await useFetch(() => {
-  const cat = categoryForRelated
-  if (!cat) return null
-  return `${apiBase}/collections/type/${cat}`
-}, {
-  key: `related-${blogId}-${categoryForRelated || 'none'}`,
-})
+// Related products: fetch when blog has category; guard updates so we never set state after unmount
+const relatedProductsResponse = ref(null)
+const isActive = ref(true)
+onScopeDispose(() => { isActive.value = false })
+
+const fetchRelated = async () => {
+  const cat = blog.value?.collectionCategory
+  if (!cat) return
+  try {
+    const url = `${apiBase}/collections/type/${cat}`
+    const data = await $fetch(url)
+    if (isActive.value) relatedProductsResponse.value = Array.isArray(data) ? data : []
+  } catch {
+    if (isActive.value) relatedProductsResponse.value = []
+  }
+}
+// Run on server (after blog is loaded) and on client when blog loads
+if (blog.value?.collectionCategory) {
+  await fetchRelated()
+}
+watch(() => blog.value?.collectionCategory, (cat) => { if (cat) fetchRelated() }, { immediate: true })
 const category = computed(() => blog.value?.collectionCategory ?? null)
 
 // Transform related products to display format
@@ -274,6 +284,7 @@ const getSeoValue = (apiValue, fallback) => {
 
 // Dynamic SEO with useHead (runs on server so View Source has full meta + canonical)
 useHead(() => {
+  try {
   const blogData = blog.value
   if (!blogData) return { title: 'Blog | SVRVE' }
 
@@ -329,8 +340,9 @@ useHead(() => {
     }
   }
   
-  // Build Product schemas from related products
-  const productSchemas = relatedProducts.value.map(product => {
+  // Build Product schemas from related products (guard in case component is tearing down)
+  const products = (relatedProducts.value || []).slice()
+  const productSchemas = products.map(product => {
     const productImage = getProductImage(product)
     const productUrl = `${siteUrl}${getProductUrl(product)}`
     
@@ -467,6 +479,9 @@ useHead(() => {
     ...productSchemas.map(ps => ({ type: 'application/ld+json', children: JSON.stringify(ps) }))
   ]
   return { title: seoTitle, link: links, meta: metaTags, script: scriptTags }
+  } catch {
+    return { title: 'Blog | SVRVE' }
+  }
 })
 
 // Slugify function for URL-friendly titles

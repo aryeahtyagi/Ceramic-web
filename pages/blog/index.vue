@@ -131,19 +131,13 @@ const siteUrl = String(config.public.siteUrl || 'https://svrve.com').replace(/\/
 // --- Menu ---
 const menuOpen = ref(false)
 
-// Server-side fetch: blogs list — must run on server so View Source shows full content
-const { data: blogsData, pending, error, refresh } = await useFetch(
-  () => {
-    const cfg = useRuntimeConfig()
-    const base = String(cfg.public.apiBase || '').replace(/\/$/, '')
-    return `${base}/blogs`
-  },
-  {
-    key: 'blogs-list',
-    server: true,
-    lazy: false
-  }
-)
+// Server-side fetch: blogs list — use string URL to avoid dispose errors on refresh
+const blogsUrl = `${apiBase}/blogs`
+const { data: blogsData, pending, error, refresh } = await useFetch(blogsUrl, {
+  key: 'blogs-list',
+  server: true,
+  lazy: false
+})
 
 const isLoading = computed(() => pending.value)
 
@@ -226,7 +220,8 @@ const resolveImageUrl = (url) => {
 
 // Dynamic SEO with useHead (runs on server so View Source has full meta + schema)
 useHead(() => {
-  const posts = blogPosts.value
+  try {
+  const posts = blogPosts.value || []
   const pageTitle = 'Blog - SVRVE'
   const pageDescription = 'Discover stories, tips, and insights about ceramics, craftsmanship, and design.'
   const currentUrl = `${siteUrl}/blog`
@@ -287,11 +282,14 @@ useHead(() => {
     { type: 'application/ld+json', children: JSON.stringify(organizationSchema) },
     { type: 'application/ld+json', children: JSON.stringify(personSchema) },
     ...blogPostingSchemas.map(s => ({ type: 'application/ld+json', children: JSON.stringify(s) }))
-  ]
+  ].filter(Boolean)
   return {
     title: pageTitle,
     meta: [{ name: 'description', content: pageDescription }],
     script: scriptTags
+  }
+  } catch {
+    return { title: 'Blog - SVRVE', meta: [{ name: 'description', content: 'Discover stories, tips, and insights about ceramics.' }] }
   }
 })
 </script>

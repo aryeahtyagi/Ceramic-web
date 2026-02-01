@@ -12,13 +12,9 @@ export default defineNuxtConfig({
   
   runtimeConfig: {
     public: {
-      // Backend API base URL (prod default points to live API)
-      // Change via env: NUXT_PUBLIC_API_BASE=https://api.svrve.com
-      // Or create .env.local file with: NUXT_PUBLIC_API_BASE=http://localhost:9090
+      // Production (going live): defaults below. Use build:prod or set env in deploy.
+      // Local dev: create .env.local with NUXT_PUBLIC_API_BASE=http://localhost:9090
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'https://api.svrve.com',
-      // Public site URL used for SEO / canonical links
-      // Change via env: NUXT_PUBLIC_SITE_URL=https://svrve.com
-      // Or create .env.local file with: NUXT_PUBLIC_SITE_URL=http://localhost:3000
       siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://svrve.com'
     }
   },
