@@ -116,7 +116,7 @@
 
       <div v-if="error && loadedProducts.length === 0" class="error-state">
         <p class="error-text">Couldn't load products.</p>
-        <button class="retry-btn" type="button" @click="fetchData">Retry</button>
+        <button class="retry-btn" type="button" @click="refresh">Retry</button>
       </div>
 
       <div v-else-if="!pending && filteredProducts.length === 0" class="empty-state">
@@ -128,33 +128,51 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { joinURL } from 'ufo'
 
 const route = useRoute()
 const router = useRouter()
 const requestURL = useRequestURL()
 const config = useRuntimeConfig()
-const apiBase = computed(() => String(config.public.apiBase || '').replace(/\/$/, ''))
+const apiBase = String(config.public.apiBase || '').replace(/\/$/, '')
+const siteUrl = String(config.public.siteUrl || 'https://svrve.com').replace(/\/$/, '')
 const cart = useCart()
 
 // --- Menu ---
 const menuOpen = ref(false)
-
 const query = ref('')
 
 // Get current type from route
 const currentType = computed(() => {
   const typeParam = route.params.type
-  if (!typeParam || route.path === '/collections' || route.path === '/collections/') {
-    return 'all'
-  }
+  if (!typeParam || route.path === '/collections' || route.path === '/collections/') return 'all'
   return String(typeParam).toLowerCase()
 })
 
-// Fetch collection types from API
-const { data: typesData, pending: typesPending } = useFetch('/collections/type', {
-  baseURL: apiBase
+// Helper: get API type string from raw types response and route type param
+function getApiTypeFromTypes(typesData, typeParam) {
+  if (!typeParam || typeParam === 'all') return null
+  const arr = Array.isArray(typesData) ? typesData : []
+  const normalizedParam = String(typeParam).toLowerCase().replace(/[-\s]+/g, ' ')
+  const found = arr.find(item => {
+    const value = String(item?.value || '').trim()
+    const id = value.toLowerCase().replace(/\s+/g, '-')
+    const idNorm = id.replace(/-/g, ' ')
+    return idNorm === normalizedParam || id === normalizedParam.replace(/ /g, '-')
+  })
+  if (found && found.value) return String(found.value).toLowerCase().replace(/\s+/g, '-')
+  if (normalizedParam.includes('mug')) return 'mugs'
+  if (normalizedParam.includes('vase')) return 'vases'
+  if (normalizedParam.includes('bowl')) return 'bowls'
+  if (normalizedParam.includes('plate')) return 'plates'
+  return null
+}
+
+// Server-side fetch: collection types
+const { data: typesData, pending: typesPending } = await useFetch('/collections/type', {
+  baseURL: apiBase,
+  key: 'collections-type'
 })
 
 // Map type value to icon
@@ -199,89 +217,34 @@ const collections = computed(() => {
   return collectionsBase.value
 })
 
-// Get API type from collections data (handles dynamic types like "Coffee Mugs")
+// Get API type from collections data (for getApiType used elsewhere)
 const getApiType = (type) => {
   if (!type || type === 'all') return null
-  
-  // Normalize the type for comparison (handle both spaces and hyphens)
   const normalizedType = String(type || '').toLowerCase().replace(/[-\s]+/g, ' ')
-  
-  // Find the collection by route type (id) - normalize both for comparison
   const collection = collectionsBase.value.find(c => {
     const normalizedId = String(c.id || '').toLowerCase().replace(/[-\s]+/g, ' ')
     return normalizedId === normalizedType
   })
-  
-  if (collection && collection.apiValue) {
-    // Use the apiValue directly from the collection
-    // Convert to lowercase and replace spaces with hyphens for URL
-    const apiValue = String(collection.apiValue).trim()
-    return apiValue.toLowerCase().replace(/\s+/g, '-')
-  }
-  
-  // Fallback: try to map common types (for backwards compatibility)
+  if (collection && collection.apiValue) return String(collection.apiValue).trim().toLowerCase().replace(/\s+/g, '-')
   const t = String(type || '').toLowerCase()
-  if (t === 'mug' || t === 'mugs' || t.includes('mug')) return 'mugs'
-  if (t === 'vase' || t === 'vases' || t.includes('vase')) return 'vases'
-  if (t === 'bowl' || t === 'bowls' || t.includes('bowl')) return 'bowls'
-  if (t === 'plate' || t === 'plates' || t.includes('plate')) return 'plates'
-  
+  if (t.includes('mug')) return 'mugs'
+  if (t.includes('vase')) return 'vases'
+  if (t.includes('bowl')) return 'bowls'
+  if (t.includes('plate')) return 'plates'
   return null
 }
 
-// Fetch products based on current type
-const pending = ref(false)
-const error = ref(null)
-const loadedProducts = ref([])
+// Server-side fetch: products for current type (runs on server so View Source has full HTML)
+const { data: productsData, pending, error, refresh } = await useFetch(() => {
+  const apiType = getApiTypeFromTypes(typesData.value, currentType.value)
+  return apiType ? `${apiBase}/collections/type/${apiType}` : `${apiBase}/collections`
+}, {
+  key: computed(() => `collections-type-${currentType.value}`)
+})
+const loadedProducts = computed(() => (Array.isArray(productsData.value) ? productsData.value : []))
 
-const fetchData = async () => {
-  const type = currentType.value
-  const apiType = getApiType(type)
-  
-  let endpoint = '/collections'
-  if (type && type !== 'all' && apiType) {
-    endpoint = `/collections/type/${apiType}`
-  }
-  
-  pending.value = true
-  error.value = null
-  
-  try {
-    const url = `${apiBase.value}${endpoint}`
-    console.log('[Collections Type] Fetching from:', url)
-    const response = await $fetch(url, {
-      method: 'GET',
-      headers: { accept: '*/*' }
-    })
-    
-    if (Array.isArray(response)) {
-      loadedProducts.value = response
-    } else {
-      loadedProducts.value = []
-    }
-  } catch (err) {
-    console.error('[Collections Type] Failed to fetch:', err)
-    error.value = err
-    loadedProducts.value = []
-  } finally {
-    pending.value = false
-  }
-}
-
-// Watch route changes
-watch(() => route.path, async (newPath, oldPath) => {
-  if (newPath !== oldPath || !oldPath) {
-    query.value = ''
-    await fetchData()
-  }
-}, { immediate: true })
-
-// Watch currentType for UI updates
-watch(currentType, (newType, oldType) => {
-  if (newType !== oldType) {
-    query.value = ''
-  }
-}, { immediate: false })
+// Clear search when navigating to another collection
+watch(() => route.params.type, () => { query.value = '' })
 
 // Helper functions
 const normalizeType = (value) =>
@@ -306,16 +269,16 @@ const resolveImageUrl = (url) => {
     try {
       const urlObj = new URL(u)
       const path = urlObj.pathname + urlObj.search
-      return `${apiBase.value}${path}`
+      return `${apiBase}${path}`
     } catch {
       // If URL parsing fails, try to extract path manually
       const match = u.match(/localhost:\d+(\/.*)/)
-      if (match) return `${apiBase.value}${match[1]}`
+      if (match) return `${apiBase}${match[1]}`
       return u
     }
   }
   if (u.startsWith('http://') || u.startsWith('https://')) return u
-  if (u.startsWith('/')) return `${apiBase.value}${u}`
+  if (u.startsWith('/')) return `${apiBase}${u}`
   return u
 }
 
@@ -417,61 +380,49 @@ const productUrl = (product) => {
   return `/product/${slug}-${product.id}`
 }
 
-// SEO and Structured Data
-const siteUrl = config.public.siteUrl || (typeof window !== 'undefined' ? window.location.origin : '')
-
 const collectionTitle = computed(() => {
   if (currentType.value === 'all') return 'Collections'
   const c = collectionsBase.value.find(x => x.id === currentType.value)
   return c ? `${c.name} Collection` : 'Collections'
 })
 
-// Watch products and generate schema
-watch([() => filteredProducts.value, () => currentType.value], ([products, type]) => {
-  if (!products || products.length === 0) return
-  
+// Dynamic SEO with useHead (runs on server so View Source has full meta + schema)
+useHead(() => {
+  const products = filteredProducts.value
+  const type = currentType.value
   const currentCollection = collectionsBase.value.find(x => x.id === type)
   const collectionName = currentCollection?.name || 'All Products'
   const pageTitle = type === 'all' ? 'Ceramic Collections - Handcrafted Ceramics' : `${collectionName} Collection - Handcrafted Ceramic ${collectionName}`
-  const pageDescription = type === 'all' 
+  const pageDescription = type === 'all'
     ? 'Discover beautiful handcrafted ceramic products. Shop unique dinnerware, vases, decorative pieces, and mugs.'
     : `Browse our collection of handcrafted ceramic ${collectionName.toLowerCase()}. Each piece is carefully crafted by skilled artisans.`
-  
-  const currentUrl = typeof window !== 'undefined' ? window.location.href : `${siteUrl}/collections/${type}`
-  
-  // Build CollectionPage schema
+  const currentUrl = `${siteUrl}/collections/${type === 'all' ? '' : type}`.replace(/\/$/, '') || `${siteUrl}/collections`
+
   const collectionPageSchema = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: pageTitle,
     description: pageDescription,
     url: currentUrl,
-    mainEntity: {
-      '@type': 'ItemList',
-      numberOfItems: products.length,
-      itemListElement: products.map((product, index) => ({
-        '@type': 'ListItem',
-        position: index + 1,
-        item: {
-          '@type': 'Product',
-          '@id': typeof window !== 'undefined' ? `${window.location.origin}${productUrl(product)}` : `${siteUrl}${productUrl(product)}`,
-          name: product.name,
-          description: product.description || ''
+    mainEntity: products.length
+      ? {
+          '@type': 'ItemList',
+          numberOfItems: products.length,
+          itemListElement: products.map((product, index) => ({
+            '@type': 'ListItem',
+            position: index + 1,
+            item: { '@type': 'Product', '@id': `${siteUrl}${productUrl(product)}`, name: product.name, description: product.description || '' }
+          }))
         }
-      }))
-    }
+      : undefined
   }
-  
-  // Build individual Product schemas
+  if (!collectionPageSchema.mainEntity) delete collectionPageSchema.mainEntity
+
   const productSchemas = products.map(product => {
-    const productImage = resolveImageUrl(product.image)
-    const productUrlFull = typeof window !== 'undefined' ? `${window.location.origin}${productUrl(product)}` : `${siteUrl}${productUrl(product)}`
-    
-    // Get catalog image or first image from raw product data
     const catalogImage = product.raw?.images?.find(img => img.catalogImage) || product.raw?.images?.[0]
-    const imageUrl = catalogImage?.imageUrl ? resolveImageUrl(catalogImage.imageUrl) : productImage
-    
-    const productSchema = {
+    const imageUrl = catalogImage?.imageUrl ? resolveImageUrl(catalogImage.imageUrl) : resolveImageUrl(product.image)
+    const productUrlFull = `${siteUrl}${productUrl(product)}`
+    const schema = {
       '@context': 'https://schema.org',
       '@type': 'Product',
       name: product.name,
@@ -479,105 +430,27 @@ watch([() => filteredProducts.value, () => currentType.value], ([products, type]
       image: imageUrl ? [imageUrl] : undefined,
       url: productUrlFull,
       sku: String(product.id),
-      brand: {
-        '@type': 'Brand',
-        name: 'SVRVE'
-      },
+      brand: { '@type': 'Brand', name: 'SVRVE' },
       category: collectionName,
-      offers: {
-        '@type': 'Offer',
-        price: String(product.price),
-        priceCurrency: 'INR',
-        availability: 'https://schema.org/InStock',
-        url: productUrlFull
-      }
+      offers: { '@type': 'Offer', price: String(product.price), priceCurrency: 'INR', availability: 'https://schema.org/InStock', url: productUrlFull }
     }
-    
-    // Add discount information if available
-    if (product.discountPercent && product.raw?.discounts) {
-      productSchema.offers.priceValidUntil = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 60 days from now
-    }
-    
-    // Remove undefined values
-    Object.keys(productSchema).forEach(key => {
-      if (productSchema[key] === undefined) {
-        delete productSchema[key]
-      }
-    })
-    if (productSchema.offers) {
-      Object.keys(productSchema.offers).forEach(key => {
-        if (productSchema.offers[key] === undefined) {
-          delete productSchema.offers[key]
-        }
-      })
-    }
-    
-    return productSchema
+    if (product.discountPercent && product.raw?.discounts) schema.offers.priceValidUntil = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    Object.keys(schema).forEach(k => { if (schema[k] === undefined) delete schema[k] })
+    if (schema.offers) Object.keys(schema.offers).forEach(k => { if (schema.offers[k] === undefined) delete schema.offers[k] })
+    return schema
   })
-  
-  // Build Organization schema
-  const organizationSchema = {
-    '@context': 'https://schema.org',
-    '@type': 'Organization',
-    name: 'SVRVE',
-    url: siteUrl,
-    logo: `${siteUrl}/logo.png`,
-    sameAs: []
-  }
-  
-  // Build script tags for all schemas
-  const scriptTags = [
-    {
-      type: 'application/ld+json',
-      children: JSON.stringify(collectionPageSchema)
-    },
-    {
-      type: 'application/ld+json',
-      children: JSON.stringify(organizationSchema)
-    }
-  ]
-  
-  // Add individual product schemas
-  productSchemas.forEach(schema => {
-    scriptTags.push({
-      type: 'application/ld+json',
-      children: JSON.stringify(schema)
-    })
-  })
-  
-  useHead({
-    title: pageTitle,
-    meta: [
-      {
-        name: 'description',
-        content: pageDescription
-      }
-    ],
-    script: scriptTags
-  })
-}, { immediate: true })
 
-// Initial SEO
-useHead({
-  title: computed(() => {
-    if (currentType.value === 'all') return 'Ceramic Collections - Handcrafted Ceramics'
-    const c = collectionsBase.value.find(x => x.id === currentType.value)
-    return c ? `${c.name} Collection - Handcrafted Ceramic ${c.name}` : 'Ceramic Collections'
-  }),
-  meta: [
-    {
-      name: 'description',
-      content: computed(() => {
-        if (currentType.value === 'all') {
-          return 'Discover beautiful handcrafted ceramic products. Shop unique dinnerware, vases, decorative pieces, and mugs.'
-        }
-        const c = collectionsBase.value.find(x => x.id === currentType.value)
-        return c
-          ? `Browse our collection of handcrafted ceramic ${c.name.toLowerCase()}. Each piece is carefully crafted by skilled artisans.`
-          : 'Discover beautiful handcrafted ceramic products.'
-      })
-    }
+  const organizationSchema = { '@context': 'https://schema.org', '@type': 'Organization', name: 'SVRVE', url: siteUrl, logo: `${siteUrl}/logo.png`, sameAs: [] }
+  const scriptTags = [
+    { type: 'application/ld+json', children: JSON.stringify(collectionPageSchema) },
+    { type: 'application/ld+json', children: JSON.stringify(organizationSchema) },
+    ...productSchemas.map(ps => ({ type: 'application/ld+json', children: JSON.stringify(ps) }))
   ]
+  return {
+    title: pageTitle,
+    meta: [{ name: 'description', content: pageDescription }],
+    script: scriptTags
+  }
 })
 </script>
 

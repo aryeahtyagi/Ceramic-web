@@ -11,7 +11,8 @@
     "build:prod": "cross-env NUXT_PUBLIC_API_BASE=https://api.svrve.com NUXT_PUBLIC_SITE_URL=https://svrve.com nuxt build",
     "generate": "nuxt generate",
     "generate:prod": "cross-env NUXT_PUBLIC_API_BASE=https://api.svrve.com NUXT_PUBLIC_SITE_URL=https://svrve.com nuxt generate",
-    "preview": "nuxt preview"
+    "preview": "nuxt preview",
+    "start": "nuxt preview"
   },
   "dependencies": {
     "nuxt": "^3.21.0"

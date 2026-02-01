@@ -32,9 +32,21 @@ npm run generate
 # Generate static site with PRODUCTION backend
 npm run generate:prod
 
-# Preview production build
+# Preview production build (runs the built SSR app)
 npm run preview
+
+# Start production server (same as preview - run after npm run build)
+npm run start
 ```
+
+## SSR (Server-Side Rendering)
+
+This project has **SSR enabled** (`ssr: true`) for better SEO. Pages are rendered on the server so search engines receive full HTML.
+
+- **Development**: `npm run dev` — runs with SSR; you’ll see server-rendered HTML.
+- **Production**: `npm run build` then `npm run start` (or `npm run preview`) — builds the Node server and runs it. The app runs as a Node server, not a static SPA.
+
+For static export (e.g. GitHub Pages), use `npm run generate`; Nuxt will pre-render routes to static HTML.
 
 ## GitHub Pages Deployment
 

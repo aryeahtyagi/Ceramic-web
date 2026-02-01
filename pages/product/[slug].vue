@@ -301,7 +301,7 @@ import { joinURL } from 'ufo'
 const route = useRoute()
 const requestURL = useRequestURL()
 const config = useRuntimeConfig()
-const apiBase = computed(() => String(config.public.apiBase || '').replace(/\/$/, ''))
+const apiBase = String(config.public.apiBase || '').replace(/\/$/, '')
 
 const slug = computed(() => String(route.params.slug || ''))
 const id = computed(() => {
@@ -309,15 +309,13 @@ const id = computed(() => {
   return m ? m[1] : null
 })
 
-const { data, pending, error, refresh } = useFetch(() => `/collections/${id.value}`, {
-  baseURL: apiBase,
-  immediate: computed(() => Boolean(id.value))
+// Server-side fetch: product and SEO (runs on server so View Source has full HTML)
+const { data, pending, error, refresh } = await useFetch(() => (id.value ? `${apiBase}/collections/${id.value}` : null), {
+  key: computed(() => `product-${id.value}`)
 })
 
-// Fetch SEO data for the product
-const { data: seoData } = useFetch(() => `/product-seo/${id.value}`, {
-  baseURL: apiBase,
-  immediate: computed(() => Boolean(id.value))
+const { data: seoData } = await useFetch(() => (id.value ? `${apiBase}/product-seo/${id.value}` : null), {
+  key: computed(() => `product-seo-${id.value}`)
 })
 
 const raw = computed(() => (data.value && typeof data.value === 'object' ? data.value : null))
@@ -367,16 +365,16 @@ const resolveImageUrl = (url) => {
     try {
       const urlObj = new URL(u)
       const path = urlObj.pathname + urlObj.search
-      return `${apiBase.value}${path}`
+      return `${apiBase}${path}`
     } catch {
       // If URL parsing fails, try to extract path manually
       const match = u.match(/localhost:\d+(\/.*)/)
-      if (match) return `${apiBase.value}${match[1]}`
+      if (match) return `${apiBase}${match[1]}`
       return u
     }
   }
   if (u.startsWith('http://') || u.startsWith('https://')) return u
-  if (u.startsWith('/')) return `${apiBase.value}${u}`
+  if (u.startsWith('/')) return `${apiBase}${u}`
   return u
 }
 

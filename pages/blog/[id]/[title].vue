@@ -96,135 +96,54 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref } from 'vue'
 
 const route = useRoute()
 const config = useRuntimeConfig()
-const apiBase = computed(() => String(config.public.apiBase || '').replace(/\/$/, ''))
+const apiBase = String(config.public.apiBase || '').replace(/\/$/, '')
+const siteUrl = String(config.public.siteUrl || 'https://svrve.com').replace(/\/$/, '')
 
-// Fetch blog data
-const blog = ref(null)
-const pending = ref(true)
-const error = ref(null)
+const blogId = route.params.id
 
-// Related products
-const relatedProducts = ref([])
-const productsPending = ref(false)
-const productsError = ref(null)
-const carouselRef = ref(null)
-
-const blogId = computed(() => {
-  const id = route.params.id
-  return id ? parseInt(String(id), 10) : null
+// Server-side fetch: blog by ID (runs on server so View Source has full HTML)
+const { data: blog, pending, error, refresh } = await useFetch(() => {
+  if (!blogId) return null
+  return `${apiBase}/blog/${blogId}`
+}, {
+  key: `blog-${blogId}`,
 })
 
-// Fetch specific blog by ID
-const fetchBlog = async () => {
-  if (!blogId.value) {
-    error.value = new Error('Blog ID is required')
-    pending.value = false
-    return
-  }
+// Server-side fetch: related products (runs on server after blog is available)
+const categoryForRelated = blog.value?.collectionCategory ?? null
+const { data: relatedProductsResponse } = await useFetch(() => {
+  const cat = categoryForRelated
+  if (!cat) return null
+  return `${apiBase}/collections/type/${cat}`
+}, {
+  key: `related-${blogId}-${categoryForRelated || 'none'}`,
+})
+const category = computed(() => blog.value?.collectionCategory ?? null)
 
-  try {
-    pending.value = true
-    error.value = null
-    
-    const response = await $fetch(`/blog/${blogId.value}`, {
-      baseURL: apiBase.value
-    })
-    
-    blog.value = response
-    pending.value = false
-    
-    // Fetch related products if collectionCategory exists
-    if (response.collectionCategory) {
-      fetchRelatedProducts(response.collectionCategory)
+// Transform related products to display format
+const relatedProducts = computed(() => {
+  const raw = relatedProductsResponse.value
+  const list = Array.isArray(raw) ? raw : []
+  return list.map(product => {
+    const catalogImage = product.images?.find(img => img.catalogImage) || product.images?.[0]
+    const imageUrl = catalogImage?.imageUrl || product.image || ''
+    const discountPercent = product.discounts?.enable ? Number(product.discounts.discount || 0) : 0
+    return {
+      id: product.id,
+      name: product.name || 'Product',
+      price: Number(product.price || 0),
+      image: imageUrl,
+      discountPercent: discountPercent > 0 ? discountPercent : null,
+      raw: product
     }
-  } catch (err) {
-    console.error('[Blog Detail] Fetch error:', err)
-    error.value = err
-    pending.value = false
-    blog.value = null
-  }
-}
-
-// Fetch related products by collection category
-const fetchRelatedProducts = async (category) => {
-  if (!category) return
-  
-  try {
-    productsPending.value = true
-    productsError.value = null
-    
-    const response = await $fetch(`/collections/type/${category}`, {
-      baseURL: apiBase.value
-    })
-    
-    // Transform products to match our display format
-    relatedProducts.value = (Array.isArray(response) ? response : []).map(product => {
-      // Get catalog image or first image
-      const catalogImage = product.images?.find(img => img.catalogImage) || product.images?.[0]
-      const imageUrl = catalogImage?.imageUrl || product.image || ''
-      
-      // Calculate discount percent
-      const discountPercent = product.discounts?.enable ? Number(product.discounts.discount || 0) : 0
-      
-      return {
-        id: product.id,
-        name: product.name || 'Product',
-        price: Number(product.price || 0),
-        image: imageUrl,
-        discountPercent: discountPercent > 0 ? discountPercent : null,
-        raw: product
-      }
-    })
-    
-    productsPending.value = false
-  } catch (err) {
-    console.error('[Blog Detail] Fetch related products error:', err)
-    productsError.value = err
-    productsPending.value = false
-    relatedProducts.value = []
-  }
-}
-
-// Parse tags (can be string or array) - using blog ref directly
-const blogTags = computed(() => {
-  if (!blog.value || !blog.value.tags) return []
-  if (Array.isArray(blog.value.tags)) return blog.value.tags
-  if (typeof blog.value.tags === 'string') {
-    return blog.value.tags.split(',').map(t => t.trim()).filter(t => t.length > 0)
-  }
-  return []
+  })
 })
 
-// Watch route changes and refetch
-watch(() => route.params.id, () => {
-  if (blogId.value) {
-    fetchBlog()
-  }
-}, { immediate: true })
-
-// Watch blog changes to fetch related products
-watch(() => blog.value?.collectionCategory, (category) => {
-  if (category) {
-    fetchRelatedProducts(category)
-  } else {
-    relatedProducts.value = []
-  }
-})
-
-// Fetch on mount
-onMounted(() => {
-  if (blogId.value) {
-    fetchBlog()
-  }
-})
-
-const refresh = () => {
-  fetchBlog()
-}
+const carouselRef = ref(null)
 
 // Helper to resolve image URLs (handle localhost)
 const resolveImageUrl = (url) => {
@@ -234,15 +153,15 @@ const resolveImageUrl = (url) => {
     try {
       const urlObj = new URL(u)
       const path = urlObj.pathname + urlObj.search
-      return `${apiBase.value}${path}`
+      return `${apiBase}${path}`
     } catch {
       const match = u.match(/localhost:\d+(\/.*)/)
-      if (match) return `${apiBase.value}${match[1]}`
+      if (match) return `${apiBase}${match[1]}`
       return u
     }
   }
   if (u.startsWith('http://') || u.startsWith('https://')) return u
-  if (u.startsWith('/')) return `${apiBase.value}${u}`
+  if (u.startsWith('/')) return `${apiBase}${u}`
   return u
 }
 
@@ -321,8 +240,9 @@ const getDaySuffix = (day) => {
   }
 }
 
-// Handle share
+// Handle share (client-only; uses window/navigator)
 const handleShare = async () => {
+  if (typeof window === 'undefined') return
   if (navigator.share && blog.value) {
     try {
       await navigator.share({
@@ -352,50 +272,38 @@ const getSeoValue = (apiValue, fallback) => {
   return fallback
 }
 
-// SEO - watch for blog data and related products, apply SEO
-watch([() => blog.value, () => relatedProducts.value], ([blogData, products]) => {
-  if (!blogData) return
+// Dynamic SEO with useHead (runs on server so View Source has full meta + canonical)
+useHead(() => {
+  const blogData = blog.value
+  if (!blogData) return { title: 'Blog | SVRVE' }
 
   const seoTitle = getSeoValue(blogData.seoTitle, blogData.title ? `${blogData.title} | SVRVE Blog` : 'Blog | SVRVE')
   const metaDesc = getSeoValue(blogData.metaDescription, blogData.content ? blogData.content.substring(0, 160).replace(/<[^>]*>/g, '') : 'Read our latest blog post on SVRVE.')
   const ogTitle = getSeoValue(blogData.ogTitle, seoTitle)
   const ogDesc = getSeoValue(blogData.ogDescription, metaDesc)
   const ogImage = getSeoValue(blogData.ogImageUrl, blogData.featuredImageUrl ? resolveImageUrl(blogData.featuredImageUrl) : '')
-  const canonical = getSeoValue(blogData.canonicalUrl, typeof window !== 'undefined' ? window.location.href : '')
+  const currentUrl = `${siteUrl}/blog/${blogData.id}/${slugify(blogData.title)}`
+  const canonical = getSeoValue(blogData.canonicalUrl, currentUrl)
 
   const metaTags = [
-    { name: 'description', content: metaDesc }
+    { name: 'description', content: metaDesc },
+    { property: 'og:title', content: ogTitle },
+    { property: 'og:description', content: ogDesc },
+    { property: 'og:type', content: 'article' },
+    { property: 'og:url', content: currentUrl }
   ]
-
+  if (ogImage) metaTags.push({ property: 'og:image', content: ogImage })
   if (blogData.primaryKeyword && String(blogData.primaryKeyword).trim() !== '') {
-    const keywords = [String(blogData.primaryKeyword).trim()]
-    if (blogData.secondaryKeywords && String(blogData.secondaryKeywords).trim() !== '') {
-      keywords.push(String(blogData.secondaryKeywords).trim())
-    }
-    metaTags.push({ name: 'keywords', content: keywords.join(', ') })
+    const kw = [String(blogData.primaryKeyword).trim()]
+    if (blogData.secondaryKeywords && String(blogData.secondaryKeywords).trim() !== '') kw.push(String(blogData.secondaryKeywords).trim())
+    metaTags.push({ name: 'keywords', content: kw.join(', ') })
   }
-
-  metaTags.push({ property: 'og:title', content: ogTitle })
-  metaTags.push({ property: 'og:description', content: ogDesc })
-  metaTags.push({ property: 'og:type', content: 'article' })
-  if (ogImage) {
-    metaTags.push({ property: 'og:image', content: ogImage })
-  }
-
-  if (blogData.publishedAt) {
-    metaTags.push({ property: 'article:published_time', content: new Date(blogData.publishedAt).toISOString() })
-  }
-
+  if (blogData.publishedAt) metaTags.push({ property: 'article:published_time', content: new Date(blogData.publishedAt).toISOString() })
   if (blogData.indexStatus && String(blogData.indexStatus).trim() !== '') {
-    const indexStatus = String(blogData.indexStatus).trim().toLowerCase()
-    if (indexStatus === 'noindex' || indexStatus === 'noindex, nofollow') {
-      metaTags.push({ name: 'robots', content: indexStatus })
-    }
+    const s = String(blogData.indexStatus).trim().toLowerCase()
+    if (s === 'noindex' || s === 'noindex, nofollow') metaTags.push({ name: 'robots', content: s })
   }
 
-  // Build structured data (JSON-LD)
-  const siteUrl = config.public.siteUrl || (typeof window !== 'undefined' ? window.location.origin : '')
-  const currentUrl = typeof window !== 'undefined' ? window.location.href : `${siteUrl}/blog/${blogData.id}/${slugify(blogData.title)}`
   const featuredImage = blogData.featuredImageUrl ? resolveImageUrl(blogData.featuredImageUrl) : ''
   
   // Estimate word count from content
@@ -424,7 +332,7 @@ watch([() => blog.value, () => relatedProducts.value], ([blogData, products]) =>
   // Build Product schemas from related products
   const productSchemas = relatedProducts.value.map(product => {
     const productImage = getProductImage(product)
-    const productUrl = typeof window !== 'undefined' ? `${window.location.origin}${getProductUrl(product)}` : `${siteUrl}${getProductUrl(product)}`
+    const productUrl = `${siteUrl}${getProductUrl(product)}`
     
     const productSchema = {
       '@context': 'https://schema.org',
@@ -547,42 +455,19 @@ watch([() => blog.value, () => relatedProducts.value], ([blogData, products]) =>
     sameAs: [] // Add social media links if available
   }
 
-  const links = []
-  if (canonical) {
-    links.push({ rel: 'canonical', href: canonical })
-  }
-  // Add Inter font for modern title styling
-  links.push({ rel: 'preconnect', href: 'https://fonts.googleapis.com' })
-  links.push({ rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' })
-  links.push({ rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap' })
-
-  // Build script tags for all schemas
-  const scriptTags = [
-    {
-      type: 'application/ld+json',
-      children: JSON.stringify(blogPostingSchema)
-    },
-    {
-      type: 'application/ld+json',
-      children: JSON.stringify(organizationSchema)
-    }
+  const links = [
+    { rel: 'canonical', href: canonical },
+    { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+    { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
+    { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap' }
   ]
-  
-  // Add product schemas
-  productSchemas.forEach(productSchema => {
-    scriptTags.push({
-      type: 'application/ld+json',
-      children: JSON.stringify(productSchema)
-    })
-  })
-
-  useHead({
-    title: seoTitle,
-    link: links,
-    meta: metaTags,
-    script: scriptTags
-  })
-}, { immediate: true })
+  const scriptTags = [
+    { type: 'application/ld+json', children: JSON.stringify(blogPostingSchema) },
+    { type: 'application/ld+json', children: JSON.stringify(organizationSchema) },
+    ...productSchemas.map(ps => ({ type: 'application/ld+json', children: JSON.stringify(ps) }))
+  ]
+  return { title: seoTitle, link: links, meta: metaTags, script: scriptTags }
+})
 
 // Slugify function for URL-friendly titles
 const slugify = (s) =>

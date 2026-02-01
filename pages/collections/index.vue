@@ -136,15 +136,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 
 const config = useRuntimeConfig()
-const apiBase = computed(() => String(config.public.apiBase || '').replace(/\/$/, ''))
-
-// Debug: Log API base on client side
-if (process.client) {
-  console.log('🔧 API Base URL:', apiBase.value)
-}
+const apiBase = String(config.public.apiBase || '').replace(/\/$/, '')
+const siteUrl = String(config.public.siteUrl || 'https://svrve.com').replace(/\/$/, '')
 
 const route = useRoute()
 const router = useRouter()
@@ -153,15 +149,13 @@ const cart = useCart()
 // --- Menu ---
 const menuOpen = ref(false)
 
-const selectedCollection = computed(() => {
-  // For /collections (without type), always show 'all'
-  return 'all'
-})
+const selectedCollection = computed(() => 'all')
 const query = ref('')
 
-// Fetch collection types from API
-const { data: typesData, pending: typesPending } = useFetch('/collections/type', {
-  baseURL: apiBase
+// Server-side fetch: collection types
+const { data: typesData, pending: typesPending } = await useFetch('/collections/type', {
+  baseURL: apiBase,
+  key: 'collections-type'
 })
 
 // Map type value to icon
@@ -205,8 +199,10 @@ const collections = computed(() => {
   return collectionsBase.value
 })
 
-const { data, pending, error, refresh } = useFetch('/collections', {
-  baseURL: apiBase
+// Server-side fetch: all collections (products)
+const { data, pending, error, refresh } = await useFetch('/collections', {
+  baseURL: apiBase,
+  key: 'collections-all'
 })
 
 const apiItems = computed(() => {
@@ -270,16 +266,16 @@ const resolveImageUrl = (url) => {
     try {
       const urlObj = new URL(u)
       const path = urlObj.pathname + urlObj.search
-      return `${apiBase.value}${path}`
+      return `${apiBase}${path}`
     } catch {
       // If URL parsing fails, try to extract path manually
       const match = u.match(/localhost:\d+(\/.*)/)
-      if (match) return `${apiBase.value}${match[1]}`
+      if (match) return `${apiBase}${match[1]}`
       return u
     }
   }
   if (u.startsWith('http://') || u.startsWith('https://')) return u
-  if (u.startsWith('/')) return `${apiBase.value}${u}`
+  if (u.startsWith('/')) return `${apiBase}${u}`
   return u
 }
 
@@ -337,8 +333,6 @@ const selectCollection = (collectionId) => {
 }
 
 const handleCollectionClick = (collectionId) => {
-  console.log('[Collections] Button clicked! Collection ID:', collectionId)
-  console.log('[Collections] Current route:', route.path)
   selectCollection(collectionId)
 }
 
@@ -370,50 +364,38 @@ const productUrl = (product) => {
   return `/product/${slug}-${product.id}`
 }
 
-// SEO and Structured Data
-const siteUrl = config.public.siteUrl || (typeof window !== 'undefined' ? window.location.origin : '')
-
-// Watch products and generate schema
-watch([() => filteredProducts.value], ([products]) => {
-  if (!products || products.length === 0) return
-  
+// Dynamic SEO with useHead (runs on server so View Source has full meta + schema)
+useHead(() => {
+  const products = filteredProducts.value
   const pageTitle = 'Ceramic Collections - Handcrafted Ceramics'
   const pageDescription = 'Discover beautiful handcrafted ceramic products. Shop unique dinnerware, vases, decorative pieces, and mugs.'
-  const currentUrl = typeof window !== 'undefined' ? window.location.href : `${siteUrl}/collections`
-  
-  // Build CollectionPage schema
+  const currentUrl = `${siteUrl}/collections`
+
   const collectionPageSchema = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: pageTitle,
     description: pageDescription,
     url: currentUrl,
-    mainEntity: {
-      '@type': 'ItemList',
-      numberOfItems: products.length,
-      itemListElement: products.map((product, index) => ({
-        '@type': 'ListItem',
-        position: index + 1,
-        item: {
-          '@type': 'Product',
-          '@id': typeof window !== 'undefined' ? `${window.location.origin}${productUrl(product)}` : `${siteUrl}${productUrl(product)}`,
-          name: product.name,
-          description: product.description || ''
+    mainEntity: products.length
+      ? {
+          '@type': 'ItemList',
+          numberOfItems: products.length,
+          itemListElement: products.map((product, index) => ({
+            '@type': 'ListItem',
+            position: index + 1,
+            item: { '@type': 'Product', '@id': `${siteUrl}${productUrl(product)}`, name: product.name, description: product.description || '' }
+          }))
         }
-      }))
-    }
+      : undefined
   }
-  
-  // Build individual Product schemas
+  if (!collectionPageSchema.mainEntity) delete collectionPageSchema.mainEntity
+
   const productSchemas = products.map(product => {
-    const productImage = resolveImageUrl(product.image)
-    const productUrlFull = typeof window !== 'undefined' ? `${window.location.origin}${productUrl(product)}` : `${siteUrl}${productUrl(product)}`
-    
-    // Get catalog image or first image from raw product data
     const catalogImage = product.raw?.images?.find(img => img.catalogImage) || product.raw?.images?.[0]
-    const imageUrl = catalogImage?.imageUrl ? resolveImageUrl(catalogImage.imageUrl) : productImage
-    
-    const productSchema = {
+    const imageUrl = catalogImage?.imageUrl ? resolveImageUrl(catalogImage.imageUrl) : resolveImageUrl(product.image)
+    const productUrlFull = `${siteUrl}${productUrl(product)}`
+    const schema = {
       '@context': 'https://schema.org',
       '@type': 'Product',
       name: product.name,
@@ -421,83 +403,24 @@ watch([() => filteredProducts.value], ([products]) => {
       image: imageUrl ? [imageUrl] : undefined,
       url: productUrlFull,
       sku: String(product.id),
-      brand: {
-        '@type': 'Brand',
-        name: 'SVRVE'
-      },
+      brand: { '@type': 'Brand', name: 'SVRVE' },
       category: 'All Products',
-      offers: {
-        '@type': 'Offer',
-        price: String(product.price),
-        priceCurrency: 'INR',
-        availability: 'https://schema.org/InStock',
-        url: productUrlFull
-      }
+      offers: { '@type': 'Offer', price: String(product.price), priceCurrency: 'INR', availability: 'https://schema.org/InStock', url: productUrlFull }
     }
-    
-    // Add discount information if available
-    if (product.discountPercent && product.raw?.discounts) {
-      productSchema.offers.priceValidUntil = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 60 days from now
-    }
-    
-    // Remove undefined values
-    Object.keys(productSchema).forEach(key => {
-      if (productSchema[key] === undefined) {
-        delete productSchema[key]
-      }
-    })
-    if (productSchema.offers) {
-      Object.keys(productSchema.offers).forEach(key => {
-        if (productSchema.offers[key] === undefined) {
-          delete productSchema.offers[key]
-        }
-      })
-    }
-    
-    return productSchema
+    if (product.discountPercent && product.raw?.discounts) schema.offers.priceValidUntil = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    Object.keys(schema).forEach(k => { if (schema[k] === undefined) delete schema[k] })
+    if (schema.offers) Object.keys(schema.offers).forEach(k => { if (schema.offers[k] === undefined) delete schema.offers[k] })
+    return schema
   })
-  
-  // Build Organization schema
-  const organizationSchema = {
-    '@context': 'https://schema.org',
-    '@type': 'Organization',
-    name: 'SVRVE',
-    url: siteUrl,
-    logo: `${siteUrl}/logo.png`,
-    sameAs: []
-  }
-  
-  // Build script tags for all schemas
+
+  const organizationSchema = { '@context': 'https://schema.org', '@type': 'Organization', name: 'SVRVE', url: siteUrl, logo: `${siteUrl}/logo.png`, sameAs: [] }
   const scriptTags = [
-    {
-      type: 'application/ld+json',
-      children: JSON.stringify(collectionPageSchema)
-    },
-    {
-      type: 'application/ld+json',
-      children: JSON.stringify(organizationSchema)
-    }
+    { type: 'application/ld+json', children: JSON.stringify(collectionPageSchema) },
+    { type: 'application/ld+json', children: JSON.stringify(organizationSchema) },
+    ...productSchemas.map(ps => ({ type: 'application/ld+json', children: JSON.stringify(ps) }))
   ]
-  
-  // Add individual product schemas
-  productSchemas.forEach(schema => {
-    scriptTags.push({
-      type: 'application/ld+json',
-      children: JSON.stringify(schema)
-    })
-  })
-  
-  useHead({
-    title: pageTitle,
-    meta: [
-      {
-        name: 'description',
-        content: pageDescription
-      }
-    ],
-    script: scriptTags
-  })
-}, { immediate: true })
+  return { title: pageTitle, meta: [{ name: 'description', content: pageDescription }], script: scriptTags }
+})
 
 // Initial SEO
 useHead({

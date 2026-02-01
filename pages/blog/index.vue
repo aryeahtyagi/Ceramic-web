@@ -116,57 +116,36 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed } from 'vue'
+
+// Force SSR so blog list is in initial HTML for SEO
+definePageMeta({ ssr: true })
 
 const route = useRoute()
 const router = useRouter()
 const cart = useCart()
 const config = useRuntimeConfig()
-const apiBase = computed(() => String(config.public.apiBase || '').replace(/\/$/, ''))
+const apiBase = String(config.public.apiBase || '').replace(/\/$/, '')
+const siteUrl = String(config.public.siteUrl || 'https://svrve.com').replace(/\/$/, '')
 
 // --- Menu ---
 const menuOpen = ref(false)
 
-// Fetch blogs from API - use ref for manual control
-const blogsData = ref(null)
-const pending = ref(true)
-const error = ref(null)
-
-// Manual fetch to have better control
-const fetchBlogs = async () => {
-  try {
-    pending.value = true
-    error.value = null
-    
-    const response = await $fetch('/blogs', {
-      baseURL: apiBase.value
-    })
-    
-    blogsData.value = response
-    pending.value = false
-  } catch (err) {
-    error.value = err
-    pending.value = false
+// Server-side fetch: blogs list — must run on server so View Source shows full content
+const { data: blogsData, pending, error, refresh } = await useFetch(
+  () => {
+    const cfg = useRuntimeConfig()
+    const base = String(cfg.public.apiBase || '').replace(/\/$/, '')
+    return `${base}/blogs`
+  },
+  {
+    key: 'blogs-list',
+    server: true,
+    lazy: false
   }
-}
+)
 
-// Fetch on mount
-onMounted(() => {
-  fetchBlogs()
-})
-
-const refresh = () => {
-  fetchBlogs()
-}
-
-// Loading state
-const isLoading = computed(() => {
-  const hasData = blogsData.value !== null && blogsData.value !== undefined
-  if (hasData) {
-    return false
-  }
-  return pending.value
-})
+const isLoading = computed(() => pending.value)
 
 // Slugify function for URL-friendly titles
 const slugify = (s) =>
@@ -233,63 +212,56 @@ const resolveImageUrl = (url) => {
     try {
       const urlObj = new URL(u)
       const path = urlObj.pathname + urlObj.search
-      return `${apiBase.value}${path}`
+      return `${apiBase}${path}`
     } catch {
       const match = u.match(/localhost:\d+(\/.*)/)
-      if (match) return `${apiBase.value}${match[1]}`
+      if (match) return `${apiBase}${match[1]}`
       return u
     }
   }
   if (u.startsWith('http://') || u.startsWith('https://')) return u
-  if (u.startsWith('/')) return `${apiBase.value}${u}`
+  if (u.startsWith('/')) return `${apiBase}${u}`
   return u
 }
 
-// SEO and Structured Data
-const siteUrl = config.public.siteUrl || (typeof window !== 'undefined' ? window.location.origin : '')
+// Dynamic SEO with useHead (runs on server so View Source has full meta + schema)
+useHead(() => {
+  const posts = blogPosts.value
+  const pageTitle = 'Blog - SVRVE'
+  const pageDescription = 'Discover stories, tips, and insights about ceramics, craftsmanship, and design.'
+  const currentUrl = `${siteUrl}/blog`
 
-// Watch blog posts and generate schema
-watch(() => blogPosts.value, (posts) => {
-  if (!posts || posts.length === 0) return
-  
-  // Build CollectionPage schema for the blog list
   const collectionPageSchema = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: 'Blog - SVRVE',
-    description: 'Discover stories, tips, and insights about ceramics, craftsmanship, and design.',
-    url: typeof window !== 'undefined' ? window.location.href : `${siteUrl}/blog`,
-    mainEntity: {
-      '@type': 'ItemList',
-      numberOfItems: posts.length,
-      itemListElement: posts.map((post, index) => ({
-        '@type': 'ListItem',
-        position: index + 1,
-        item: {
-          '@type': 'BlogPosting',
-          '@id': typeof window !== 'undefined' ? `${window.location.origin}/blog/${post.id}/${post.titleSlug}` : `${siteUrl}/blog/${post.id}/${post.titleSlug}`,
-          headline: post.title,
-          description: post.excerpt,
-          image: post.image ? resolveImageUrl(post.image) : undefined,
-          datePublished: post.date ? new Date(post.date).toISOString() : undefined,
-          author: {
-            '@type': 'Person',
-            name: 'Arya Tyagi'
-          },
-          publisher: {
-            '@type': 'Organization',
-            name: 'SVRVE',
-            url: siteUrl
-          }
+    name: pageTitle,
+    description: pageDescription,
+    url: currentUrl,
+    mainEntity: posts.length
+      ? {
+          '@type': 'ItemList',
+          numberOfItems: posts.length,
+          itemListElement: posts.map((post, index) => ({
+            '@type': 'ListItem',
+            position: index + 1,
+            item: {
+              '@type': 'BlogPosting',
+              '@id': `${siteUrl}/blog/${post.id}/${post.titleSlug}`,
+              headline: post.title,
+              description: post.excerpt,
+              image: post.image ? resolveImageUrl(post.image) : undefined,
+              datePublished: post.date ? new Date(post.date).toISOString() : undefined,
+              author: { '@type': 'Person', name: 'Arya Tyagi' },
+              publisher: { '@type': 'Organization', name: 'SVRVE', url: siteUrl }
+            }
+          }))
         }
-      }))
-    }
+      : undefined
   }
-  
-  // Build individual BlogPosting schemas for each post
+  if (!collectionPageSchema.mainEntity) delete collectionPageSchema.mainEntity
+
   const blogPostingSchemas = posts.map(post => {
-    const postUrl = typeof window !== 'undefined' ? `${window.location.origin}/blog/${post.id}/${post.titleSlug}` : `${siteUrl}/blog/${post.id}/${post.titleSlug}`
-    
+    const postUrl = `${siteUrl}/blog/${post.id}/${post.titleSlug}`
     const schema = {
       '@context': 'https://schema.org',
       '@type': 'BlogPosting',
@@ -297,106 +269,30 @@ watch(() => blogPosts.value, (posts) => {
       description: post.excerpt,
       url: postUrl,
       datePublished: post.date ? new Date(post.date).toISOString() : undefined,
-      author: {
-        '@type': 'Person',
-        name: 'Arya Tyagi'
-      },
-      publisher: {
-        '@type': 'Organization',
-        name: 'SVRVE',
-        url: siteUrl,
-        logo: {
-          '@type': 'ImageObject',
-          url: `${siteUrl}/logo.png`
-        }
-      },
-      mainEntityOfPage: {
-        '@type': 'WebPage',
-        '@id': postUrl
-      },
+      author: { '@type': 'Person', name: 'Arya Tyagi' },
+      publisher: { '@type': 'Organization', name: 'SVRVE', url: siteUrl, logo: { '@type': 'ImageObject', url: `${siteUrl}/logo.png` } },
+      mainEntityOfPage: { '@type': 'WebPage', '@id': postUrl },
       articleSection: post.category || undefined,
-      inLanguage: 'en-IN'
+      inLanguage: 'en-IN',
+      ...(post.image && { image: resolveImageUrl(post.image) })
     }
-    
-    if (post.image) {
-      schema.image = resolveImageUrl(post.image)
-    }
-    
-    // Remove undefined values
-    Object.keys(schema).forEach(key => {
-      if (schema[key] === undefined) {
-        delete schema[key]
-      }
-    })
-    if (schema.publisher.logo && !schema.publisher.logo.url) {
-      delete schema.publisher.logo
-    }
-    
+    Object.keys(schema).forEach(k => { if (schema[k] === undefined) delete schema[k] })
     return schema
   })
-  
-  // Build Organization schema
-  const organizationSchema = {
-    '@context': 'https://schema.org',
-    '@type': 'Organization',
-    name: 'SVRVE',
-    url: siteUrl,
-    logo: `${siteUrl}/logo.png`,
-    sameAs: []
-  }
-  
-  // Build Person schema for author
-  const personSchema = {
-    '@context': 'https://schema.org',
-    '@type': 'Person',
-    name: 'Arya Tyagi'
-  }
-  
-  // Build script tags for all schemas
-  const scriptTags = [
-    {
-      type: 'application/ld+json',
-      children: JSON.stringify(collectionPageSchema)
-    },
-    {
-      type: 'application/ld+json',
-      children: JSON.stringify(organizationSchema)
-    },
-    {
-      type: 'application/ld+json',
-      children: JSON.stringify(personSchema)
-    }
-  ]
-  
-  // Add individual blog posting schemas
-  blogPostingSchemas.forEach(schema => {
-    scriptTags.push({
-      type: 'application/ld+json',
-      children: JSON.stringify(schema)
-    })
-  })
-  
-  useHead({
-    title: 'Blog - SVRVE',
-    meta: [
-      {
-        name: 'description',
-        content: 'Discover stories, tips, and insights about ceramics, craftsmanship, and design.'
-      }
-    ],
-    script: scriptTags
-  })
-}, { immediate: true })
 
-// Initial SEO
-useHead({
-  title: 'Blog - SVRVE',
-  meta: [
-    {
-      name: 'description',
-      content: 'Discover stories, tips, and insights about ceramics, craftsmanship, and design.'
-    }
+  const organizationSchema = { '@context': 'https://schema.org', '@type': 'Organization', name: 'SVRVE', url: siteUrl, logo: `${siteUrl}/logo.png`, sameAs: [] }
+  const personSchema = { '@context': 'https://schema.org', '@type': 'Person', name: 'Arya Tyagi' }
+  const scriptTags = [
+    { type: 'application/ld+json', children: JSON.stringify(collectionPageSchema) },
+    { type: 'application/ld+json', children: JSON.stringify(organizationSchema) },
+    { type: 'application/ld+json', children: JSON.stringify(personSchema) },
+    ...blogPostingSchemas.map(s => ({ type: 'application/ld+json', children: JSON.stringify(s) }))
   ]
+  return {
+    title: pageTitle,
+    meta: [{ name: 'description', content: pageDescription }],
+    script: scriptTags
+  }
 })
 </script>
 

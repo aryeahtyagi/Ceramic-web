@@ -69,14 +69,13 @@ export default defineNuxtConfig({
   // Global CSS
   css: ['~/assets/css/main.css'],
 
-  // Static site generation for GitHub Pages (SSG) with HTML output
-  // This makes above-the-fold content (and images) discoverable in the initial document.
-  ssr: false,
-  
-  // Build optimization
+  // Server-Side Rendering for SEO (HTML is rendered on the server so crawlers see full content)
+  ssr: true,
+
+  // Optional: pre-render these routes at build time (hybrid mode)
   nitro: {
     prerender: {
-      routes: ['/', '/collections']
+      routes: ['/', '/collections', '/blog']
     }
   },
 
