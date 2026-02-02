@@ -419,12 +419,18 @@ useHead(() => {
     { type: 'application/ld+json', children: JSON.stringify(organizationSchema) },
     ...productSchemas.map(ps => ({ type: 'application/ld+json', children: JSON.stringify(ps) }))
   ]
-  return { title: pageTitle, meta: [{ name: 'description', content: pageDescription }], script: scriptTags }
+  return {
+    title: pageTitle,
+    link: [{ rel: 'canonical', href: currentUrl }],
+    meta: [{ name: 'description', content: pageDescription }],
+    script: scriptTags
+  }
 })
 
 // Initial SEO
 useHead({
   title: 'Ceramic Collections - Handcrafted Ceramics',
+  link: [{ rel: 'canonical', href: `${siteUrl}/collections` }],
   meta: [
     {
       name: 'description',

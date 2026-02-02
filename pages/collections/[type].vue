@@ -448,6 +448,7 @@ useHead(() => {
   ]
   return {
     title: pageTitle,
+    link: [{ rel: 'canonical', href: currentUrl }],
     meta: [{ name: 'description', content: pageDescription }],
     script: scriptTags
   }

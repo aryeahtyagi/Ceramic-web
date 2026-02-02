@@ -285,11 +285,16 @@ useHead(() => {
   ].filter(Boolean)
   return {
     title: pageTitle,
+    link: [{ rel: 'canonical', href: currentUrl }],
     meta: [{ name: 'description', content: pageDescription }],
     script: scriptTags
   }
   } catch {
-    return { title: 'Blog - SVRVE', meta: [{ name: 'description', content: 'Discover stories, tips, and insights about ceramics.' }] }
+    return {
+      title: 'Blog - SVRVE',
+      link: [{ rel: 'canonical', href: `${siteUrl}/blog` }],
+      meta: [{ name: 'description', content: 'Discover stories, tips, and insights about ceramics.' }]
+    }
   }
 })
 </script>
