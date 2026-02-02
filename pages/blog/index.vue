@@ -312,7 +312,7 @@ useHead(() => {
   margin: 0;
   font-size: 0.8125rem;
   font-weight: 400;
-  color: #666;
+  color: #5c5c5c;
   font-family: 'Georgia', 'Times New Roman', serif;
   font-style: italic;
   letter-spacing: 0.05em;
@@ -438,7 +438,7 @@ useHead(() => {
 
 .page-subtitle {
   font-size: 1rem;
-  color: #666;
+  color: #5c5c5c;
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
@@ -527,7 +527,7 @@ useHead(() => {
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
-  color: #ccc;
+  color: #757575;
 }
 
 .blog-image-placeholder svg {
@@ -546,7 +546,7 @@ useHead(() => {
   gap: 0.5rem;
   margin-bottom: 1rem;
   font-size: 0.8125rem;
-  color: #888;
+  color: #5c5c5c;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -559,7 +559,7 @@ useHead(() => {
 }
 
 .meta-separator {
-  color: #ccc;
+  color: #757575;
 }
 
 .blog-date {
@@ -586,7 +586,7 @@ useHead(() => {
 
 .blog-excerpt {
   font-size: 0.9375rem;
-  color: #666;
+  color: #5c5c5c;
   line-height: 1.7;
   margin: 0 0 1.5rem;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
@@ -636,7 +636,7 @@ useHead(() => {
 
 .empty-text {
   font-size: 1rem;
-  color: #666;
+  color: #5c5c5c;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
@@ -665,7 +665,7 @@ useHead(() => {
 
 .loading-text {
   font-size: 1rem;
-  color: #666;
+  color: #5c5c5c;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 

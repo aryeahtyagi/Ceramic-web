@@ -25,6 +25,7 @@
         <!-- Top Navigation -->
         <div class="article-nav">
           <NuxtLink to="/blog" class="nav-back-btn">
+            <span class="sr-only">Back to blog</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="19" y1="12" x2="5" y2="12"/>
               <polyline points="12 19 5 12 12 5"/>
@@ -38,9 +39,10 @@
           </button>
         </div>
 
-        <!-- Featured Image -->
-        <div v-if="blog.featuredImageUrl" class="featured-image">
+        <!-- Featured Image (no explicit width/height; sizing via CSS only) -->
+        <div v-if="blog.featuredImageUrl" class="featured-image" ref="featuredImageWrapRef">
           <img
+            ref="featuredImageRef"
             :src="resolveImageUrl(blog.featuredImageUrl)"
             :alt="blog.title || 'Blog featured image'"
             loading="eager"
@@ -61,6 +63,9 @@
 
           <!-- Blog Content -->
           <div class="blog-content" v-html="processedContent"></div>
+
+          <!-- Updated / Last modified (bottom, before related products) -->
+          <p v-if="blog.updatedAt || blog.publishedAt" class="article-updated">Last modified on {{ formatDateShort(blog.updatedAt || blog.publishedAt) }}</p>
         </div>
       </article>
 
@@ -96,7 +101,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onScopeDispose } from 'vue'
+import { computed, ref, watch, onScopeDispose, onMounted, nextTick } from 'vue'
 
 const route = useRoute()
 const config = useRuntimeConfig()
@@ -154,6 +159,21 @@ const relatedProducts = computed(() => {
 })
 
 const carouselRef = ref(null)
+const featuredImageRef = ref(null)
+const featuredImageWrapRef = ref(null)
+
+// Ensure featured image never has explicit width/height (sizing via CSS only)
+function stripFeaturedImageDimensions() {
+  nextTick(() => {
+    const el = featuredImageRef.value
+    if (el && el instanceof HTMLImageElement) {
+      el.removeAttribute('width')
+      el.removeAttribute('height')
+    }
+  })
+}
+watch(() => blog.value?.featuredImageUrl, () => stripFeaturedImageDimensions(), { immediate: true })
+onMounted(stripFeaturedImageDimensions)
 
 // Helper to resolve image URLs (handle localhost)
 const resolveImageUrl = (url) => {
@@ -188,7 +208,7 @@ const processBlogContent = (content) => {
     if (!imageUrl) return ''
     // Escape HTML in URL to prevent XSS
     const safeUrl = imageUrl.replace(/"/g, '&quot;')
-    return `<img src="${safeUrl}" alt="" style="max-width: 100%; height: auto; display: block; margin: 2rem 0;" loading="lazy" />`
+    return `<div class="blog-content-image"><img src="${safeUrl}" alt="" loading="lazy" /></div>`
   })
   
   // Convert <br> to proper line break
@@ -200,6 +220,13 @@ const processBlogContent = (content) => {
   
   // Also handle <b>{value}</b> for bold
   processed = processed.replace(/<b>\s*\{?\s*([^<{}]+?)\s*\}?\s*<\/b>/gi, '<strong>$1</strong>')
+  
+  // Ensure no img has explicit width/height attributes (use CSS for sizing)
+  processed = processed.replace(/\s+width\s*=\s*["'][^"']*["']/gi, '')
+  processed = processed.replace(/\s+height\s*=\s*["'][^"']*["']/gi, '')
+  
+  // Wrap every img in a container with aspect-ratio (sizing via CSS, no width/height on img)
+  processed = processed.replace(/<img(\s[^>]*?)\s*\/?>/gi, '<div class="blog-content-image"><img$1></div>')
   
   return processed
 }
@@ -282,15 +309,17 @@ const getSeoValue = (apiValue, fallback) => {
   return fallback
 }
 
-// Dynamic SEO with useHead (runs on server so View Source has full meta + canonical)
+// Dynamic SEO with useHead (runs on server so View Source has full meta + canonical).
+// When blogData is null (e.g. during client hydration), do not set title so we don't overwrite the SSR title.
 useHead(() => {
   try {
   const blogData = blog.value
-  if (!blogData) return { title: 'Blog | SVRVE' }
+  if (!blogData) return {}
 
   const seoTitle = getSeoValue(blogData.seoTitle, blogData.title ? `${blogData.title} | SVRVE Blog` : 'Blog | SVRVE')
   const metaDesc = getSeoValue(blogData.metaDescription, blogData.content ? blogData.content.substring(0, 160).replace(/<[^>]*>/g, '') : 'Read our latest blog post on SVRVE.')
-  const ogTitle = getSeoValue(blogData.ogTitle, seoTitle)
+  // og:title = main article title (h1), not SEO title from API
+  const ogTitle = blogData.h1Title || blogData.title || 'Blog | SVRVE'
   const ogDesc = getSeoValue(blogData.ogDescription, metaDesc)
   const ogImage = getSeoValue(blogData.ogImageUrl, blogData.featuredImageUrl ? resolveImageUrl(blogData.featuredImageUrl) : '')
   const currentUrl = `${siteUrl}/blog/${blogData.id}/${slugify(blogData.title)}`
@@ -480,7 +509,7 @@ useHead(() => {
   ]
   return { title: seoTitle, link: links, meta: metaTags, script: scriptTags }
   } catch {
-    return { title: 'Blog | SVRVE' }
+    return {}
   }
 })
 
@@ -591,6 +620,7 @@ const formatPrice = (price) => {
 /* Featured Image */
 .featured-image {
   width: 100%;
+  aspect-ratio: 16 / 9;
   margin: 0;
   border-radius: 0;
   overflow: hidden;
@@ -600,9 +630,10 @@ const formatPrice = (price) => {
 
 .featured-image img {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
   object-fit: cover;
+  object-position: center;
 }
 
 /* Article Content */
@@ -644,7 +675,7 @@ const formatPrice = (price) => {
   gap: 8px;
   margin-bottom: 32px;
   font-size: 0.875rem;
-  color: #888;
+  color: #5c5c5c;
   font-weight: 400;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   text-transform: uppercase;
@@ -652,12 +683,19 @@ const formatPrice = (price) => {
 }
 
 .meta-separator {
-  color: #ccc;
+  color: #757575;
 }
 
 .meta-date,
 .meta-reading-time {
-  color: #888;
+  color: #5c5c5c;
+}
+
+.article-updated {
+  margin: 2rem 0 0;
+  font-size: 0.875rem;
+  color: #5c5c5c;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* Blog Content */
@@ -748,11 +786,11 @@ const formatPrice = (price) => {
 .blog-content :deep(blockquote) {
   margin: 2rem 0;
   padding: 1.5rem 1.5rem;
-  border-left: 3px solid #ddd;
-  background: #f9f9f9;
+  border-left: 3px solid #bbb;
+  background: #f5f5f5;
   border-radius: 0;
   font-style: italic;
-  color: #555;
+  color: #4a4a4a;
   font-size: 1rem;
   line-height: 1.7;
 }
@@ -765,12 +803,23 @@ const formatPrice = (price) => {
   }
 }
 
-.blog-content :deep(img) {
+/* In-content images: wrapper has aspect-ratio; img fills it (no width/height on img) */
+.blog-content :deep(.blog-content-image) {
+  width: 100%;
   max-width: 100%;
-  height: auto;
+  aspect-ratio: 16 / 9;
   margin: 2rem 0;
   border-radius: 0;
+  overflow: hidden;
+  background: #e8e8e8;
+}
+
+.blog-content :deep(.blog-content-image img) {
+  width: 100%;
+  height: 100%;
   display: block;
+  object-fit: cover;
+  object-position: center;
 }
 
 .blog-content :deep(a) {
@@ -799,7 +848,7 @@ const formatPrice = (price) => {
 
 .loading-text {
   font-size: 1rem;
-  color: #666;
+  color: #5c5c5c;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
@@ -852,7 +901,7 @@ const formatPrice = (price) => {
 
 .not-found-state p {
   font-size: 1rem;
-  color: #666;
+  color: #5c5c5c;
   margin: 0 0 2rem;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }

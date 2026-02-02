@@ -24,7 +24,7 @@ export default defineNuxtConfig({
     baseURL: '/',
     head: {
       htmlAttrs: {
-        lang: 'en'
+        lang: 'en-IN'
       },
       title: 'Ceramic Artistry - Handcrafted Ceramics',
       meta: [
