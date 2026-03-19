@@ -61,6 +61,11 @@
           <span class="menu-label">Cart</span>
         </NuxtLink>
 
+        <NuxtLink to="/return-policy" class="menu-item" @click="closeMenu">
+          <span class="menu-icon">↩️</span>
+          <span class="menu-label">Return Policy</span>
+        </NuxtLink>
+
         <NuxtLink v-if="auth.isAuthenticated.value" to="/orders" class="menu-item" @click="closeMenu">
           <span class="menu-icon">📋</span>
           <span class="menu-label">Orders</span>
