@@ -138,10 +138,6 @@
 
         <!-- Product Info -->
         <div class="info">
-          <div class="product-header">
-            <span class="handmade-tag">HANDMADE</span>
-          </div>
-
           <h1 class="product-name">{{ product.name }}</h1>
 
           <div class="rating-section">
@@ -152,6 +148,46 @@
               {{ averageRating }}/5 ({{ reviewsCount }} review{{ reviewsCount !== 1 ? 's' : '' }})
             </span>
             <span v-else class="reviews-text">No reviews yet</span>
+          </div>
+
+          <!-- Service highlights (Amazon-style) -->
+          <div class="service-highlights" aria-label="Delivery and returns">
+            <div class="service-highlight-item">
+              <svg class="service-highlight-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2" y="5" width="20" height="14" rx="2"/>
+                <path d="M2 10h20"/>
+                <path d="M6 15h4"/>
+              </svg>
+              <span class="service-highlight-text">Pay on delivery</span>
+            </div>
+            <div class="service-highlight-item">
+              <svg class="service-highlight-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M1 3h15v13H1z"/>
+                <path d="M16 8h4l3 3v5h-7V8z"/>
+                <circle cx="5.5" cy="18.5" r="2.5"/>
+                <circle cx="18.5" cy="18.5" r="2.5"/>
+                <circle cx="18" cy="6" r="3"/>
+                <path d="M18 4.5v3M18 6h1.5"/>
+              </svg>
+              <span class="service-highlight-text">One day delivery guarantee</span>
+            </div>
+            <div class="service-highlight-item">
+              <svg class="service-highlight-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M1 3h15v13H1z"/>
+                <path d="M16 8h4l3 3v5h-7V8z"/>
+                <circle cx="5.5" cy="18.5" r="2.5"/>
+                <circle cx="18.5" cy="18.5" r="2.5"/>
+              </svg>
+              <span class="service-highlight-text">Free delivery</span>
+            </div>
+            <div class="service-highlight-item">
+              <svg class="service-highlight-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="6" width="18" height="13" rx="2"/>
+                <path d="M8 11l-4 4 4 4"/>
+                <path d="M4 15h13"/>
+              </svg>
+              <span class="service-highlight-text">30 days return</span>
+            </div>
           </div>
 
           <div class="price-section">
@@ -178,8 +214,18 @@
 
           <!-- Action Buttons -->
           <div class="action-buttons">
-            <button class="add-to-cart-btn" type="button" @click="addCurrentToCart">
-              ADD TO CART
+            <button
+              class="add-to-cart-btn"
+              type="button"
+              @click="addCurrentToCart"
+              :aria-label="selectedQuantity > 1 ? `Add ${selectedQuantity} items to cart` : 'Add to cart'"
+            >
+              <template v-if="selectedQuantity > 1">
+                ADD {{ selectedQuantity }} ITEMS TO CART
+              </template>
+              <template v-else>
+                ADD TO CART
+              </template>
             </button>
             <button class="buy-now-btn" type="button" @click="handleBuyNow">
               BUY IT NOW
@@ -1621,24 +1667,6 @@ watchEffect(() => {
 }
 
 /* Product Info Styles */
-.product-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.handmade-tag {
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #666;
-  padding: 4px 8px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: #fff;
-}
-
 .product-name {
   font-size: 1.5rem;
   font-weight: 400;
@@ -1672,6 +1700,35 @@ watchEffect(() => {
 .reviews-text {
   font-size: 0.875rem;
   color: #666;
+}
+
+.service-highlights {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  margin-bottom: 20px;
+  max-width: 100%;
+}
+
+.service-highlight-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.service-highlight-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  color: #111;
+}
+
+.service-highlight-text {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: #007185;
+  font-weight: 400;
 }
 
 .price-section {
