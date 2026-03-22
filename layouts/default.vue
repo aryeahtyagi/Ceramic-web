@@ -2,6 +2,7 @@
   <main id="main-content">
     <slot />
   </main>
+  <SupportFab />
 </template>
 
 <script setup>

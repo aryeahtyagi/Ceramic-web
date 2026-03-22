@@ -20,6 +20,15 @@ body {
   color: var(--text-dark);
 }
 
+/* Product titles — slab serif (see PDP / listings) */
+.product-name,
+.product-card .product-name {
+  font-family: 'Roboto Slab', Rockwell, 'Times New Roman', serif;
+  font-weight: 400;
+  color: #000;
+  line-height: 1.2;
+}
+
 .sr-only {
   position: absolute !important;
   width: 1px !important;

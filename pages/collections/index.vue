@@ -743,12 +743,10 @@ useHead({
 
 .product-name {
   font-size: 0.9375rem;
-  font-weight: 400;
-  color: #2c2c2c;
   margin-bottom: 4px;
-  line-height: 1.5;
   letter-spacing: 0.01em;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.3;
+  /* slab-serif — global main.css */
 }
 
 .product-price {

@@ -1035,15 +1035,13 @@ const formatPrice = (price) => {
 
 .product-card .product-name {
   font-size: 0.875rem;
-  font-weight: 500;
-  color: #2c2c2c;
   margin: 0 0 6px;
-  line-height: 1.4;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* slab-serif — global main.css */
 }
 
 .product-card .product-price {

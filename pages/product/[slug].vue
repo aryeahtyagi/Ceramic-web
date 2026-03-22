@@ -140,7 +140,42 @@
         <div class="info">
           <h1 class="product-name">{{ product.name }}</h1>
 
-          <div class="rating-section">
+          <div class="price-section">
+            <div class="price-row">
+              <span class="price-display">
+                <span class="price-currency">Rs.</span>
+                <span class="price-amount">{{ formatPriceNumberOnly(offerPrice || product.price) }}</span>
+              </span>
+              <span v-if="discountPercent" class="original-price-display">
+                <span class="original-price-currency">Rs.</span>
+                <span class="original-price-amount">{{ formatPriceNumberOnly(product.price) }}</span>
+              </span>
+              <span v-if="selectedQuantity > 1" class="qty-total">
+                for {{ selectedQuantity }} pcs · Rs. {{ formatPriceNumberOnly(totalSelectedPrice) }}
+              </span>
+            </div>
+            <p class="price-tax-note">Price incl. of all taxes</p>
+          </div>
+
+          <button
+            v-if="productReviewsSorted.length"
+            type="button"
+            class="rating-section rating-section--link"
+            aria-label="Click to scroll to customer reviews"
+            @click="scrollToReviews"
+          >
+            <div class="rating-row">
+              <div class="stars">
+                <span v-for="i in 5" :key="i" class="star" :class="{ filled: i <= starRating }">★</span>
+              </div>
+              <span v-if="reviewsCount > 0" class="reviews-text">
+                {{ averageRating }}/5 ({{ reviewsCount }} review{{ reviewsCount !== 1 ? 's' : '' }})
+              </span>
+              <span v-else class="reviews-text">No reviews yet</span>
+            </div>
+            <span class="rating-hint">Click here to see customer reviews with photos</span>
+          </button>
+          <div v-else class="rating-section">
             <div class="stars">
               <span v-for="i in 5" :key="i" class="star" :class="{ filled: i <= starRating }">★</span>
             </div>
@@ -149,6 +184,34 @@
             </span>
             <span v-else class="reviews-text">No reviews yet</span>
           </div>
+
+          <!-- Rating distribution bars + rotating review excerpts (from API reviews) -->
+          <button
+            v-if="productReviewsSorted.length"
+            type="button"
+            class="rating-breakdown-btn"
+            aria-label="View all customer reviews"
+            @click="scrollToReviews"
+          >
+            <div class="rating-histogram" aria-hidden="true">
+              <div v-for="s in [5, 4, 3, 2, 1]" :key="s" class="rating-histogram-row">
+                <span class="rating-histogram-label">{{ s }}★</span>
+                <div class="rating-histogram-track">
+                  <div
+                    class="rating-histogram-fill"
+                    :style="{ width: `${ratingHistogramPercent[s]}%` }"
+                  />
+                </div>
+              </div>
+            </div>
+            <div v-if="reviewsWithTextSnippet.length" class="rating-snippet-wrap">
+              <Transition name="review-snippet-fade" mode="out-in">
+                <p :key="rotatingReviewIndex" class="rating-snippet-text" aria-live="polite">
+                  “{{ currentRotatingSnippet }}”
+                </p>
+              </Transition>
+            </div>
+          </button>
 
           <!-- Service highlights (Amazon-style) -->
           <div class="service-highlights" aria-label="Delivery and returns">
@@ -190,51 +253,39 @@
             </div>
           </div>
 
-          <div class="price-section">
-            <span class="price">{{ formatPrice(offerPrice || product.price) }}</span>
-            <span v-if="discountPercent" class="original-price">{{ formatPrice(product.price) }}</span>
-            <span v-if="selectedQuantity > 1" class="qty-total">
-              for {{ selectedQuantity }} pcs · {{ formatPrice(totalSelectedPrice) }}
-            </span>
-          </div>
-
-          <!-- Quantity Selection -->
-          <div class="quantity-section">
-            <label class="quantity-label">QUANTITY</label>
-            <div class="quantity-controls">
-              <button class="qty-btn" type="button" @click="selectedQuantity = Math.max(1, selectedQuantity - 1)" aria-label="Decrease">
-                −
-              </button>
-              <span class="qty-value">{{ selectedQuantity }}</span>
-              <button class="qty-btn" type="button" @click="selectedQuantity++" aria-label="Increase">
-                +
-              </button>
+          <!-- Quantity + Add to bag (stacked capsules) -->
+          <div class="product-actions">
+            <div class="quantity-section">
+              <span class="sr-only">Quantity</span>
+              <div class="quantity-controls" role="group" aria-label="Quantity">
+                <button
+                  class="qty-btn qty-btn--minus"
+                  type="button"
+                  @click="selectedQuantity = Math.max(1, selectedQuantity - 1)"
+                  aria-label="Decrease quantity"
+                >
+                  −
+                </button>
+                <span class="qty-value">{{ selectedQuantity }}</span>
+                <button class="qty-btn qty-btn--plus" type="button" @click="selectedQuantity++" aria-label="Increase quantity">
+                  +
+                </button>
+              </div>
             </div>
-          </div>
 
-          <!-- Action Buttons -->
-          <div class="action-buttons">
             <button
               class="add-to-cart-btn"
               type="button"
               @click="addCurrentToCart"
-              :aria-label="selectedQuantity > 1 ? `Add ${selectedQuantity} items to cart` : 'Add to cart'"
+              :aria-label="selectedQuantity > 1 ? `Add ${selectedQuantity} items to bag` : 'Add to bag'"
             >
               <template v-if="selectedQuantity > 1">
-                ADD {{ selectedQuantity }} ITEMS TO CART
+                Add {{ selectedQuantity }} items to bag
               </template>
               <template v-else>
-                ADD TO CART
+                Add to bag
               </template>
             </button>
-            <button class="buy-now-btn" type="button" @click="handleBuyNow">
-              BUY IT NOW
-            </button>
-          </div>
-
-          <!-- Shipping Info -->
-          <div class="shipping-info">
-            <p>Dispatches within 3-4 business days. Cash on delivery available.</p>
           </div>
 
           <!-- Product Description -->
@@ -253,8 +304,12 @@
             </ul>
           </div>
 
-          <!-- Customer reviews -->
-          <div v-if="productReviewsSorted.length" class="reviews-section">
+          <!-- Customer reviews (mobile: original position — before specs / shipping) -->
+          <div
+            v-if="productReviewsSorted.length"
+            id="product-reviews-mobile"
+            class="reviews-section product-reviews-mobile"
+          >
             <div class="reviews-section-header">
               <h2 class="section-title">Customer reviews</h2>
               <p v-if="reviewsCount > 0" class="reviews-section-summary">
@@ -263,10 +318,49 @@
                 {{ reviewsCount }} {{ reviewsCount === 1 ? 'review' : 'reviews' }}
               </p>
             </div>
-            <ul class="reviews-list" role="list">
+
+            <div class="reviews-filters" role="region" aria-label="Filter reviews">
+              <div class="reviews-filters-row">
+                <button
+                  type="button"
+                  class="reviews-filter-chip"
+                  :class="{ 'reviews-filter-chip--active': reviewsFilterPhotosOnly }"
+                  :aria-pressed="reviewsFilterPhotosOnly"
+                  :disabled="reviewsWithPhotoCount === 0"
+                  @click="reviewsFilterPhotosOnly = !reviewsFilterPhotosOnly"
+                >
+                  With photos
+                  <span v-if="reviewsWithPhotoCount" class="reviews-filter-count">({{ reviewsWithPhotoCount }})</span>
+                </button>
+              </div>
+              <div class="reviews-filters-row reviews-filters-row--stars" role="group" aria-label="Filter by star rating">
+                <button
+                  type="button"
+                  class="reviews-filter-chip"
+                  :class="{ 'reviews-filter-chip--active': reviewsFilterStar === null }"
+                  @click="setReviewStarFilter(null)"
+                >
+                  All stars
+                </button>
+                <button
+                  v-for="s in [1, 2, 3, 4, 5]"
+                  :key="`m-star-${s}`"
+                  type="button"
+                  class="reviews-filter-chip"
+                  :class="{ 'reviews-filter-chip--active': reviewsFilterStar === s }"
+                  :disabled="starReviewCounts[s] === 0"
+                  @click="toggleReviewStarFilter(s)"
+                >
+                  {{ s }}★
+                  <span class="reviews-filter-count">({{ starReviewCounts[s] }})</span>
+                </button>
+              </div>
+            </div>
+
+            <ul v-if="displayedReviews.length" class="reviews-list" role="list">
               <li
                 v-for="review in displayedReviews"
-                :key="review.id ?? `${review.createdOn}-${review.description}`"
+                :key="`m-${review.id ?? `${review.createdOn}-${review.description}`}`"
                 class="review-card"
               >
                 <div class="review-card-top">
@@ -297,7 +391,7 @@
                 <div v-if="getReviewImageUrls(review).length" class="review-images">
                   <button
                     v-for="(imgUrl, idx) in getReviewImageUrls(review)"
-                    :key="`${review.id}-img-${idx}`"
+                    :key="`m-${review.id}-img-${idx}`"
                     type="button"
                     class="review-thumb-btn"
                     @click="reviewPreviewUrl = imgUrl"
@@ -307,7 +401,13 @@
                 </div>
               </li>
             </ul>
-            <div v-if="showReviewsLoadMore || showReviewsSeeLess" class="reviews-actions">
+            <div v-else-if="filteredReviewsSorted.length === 0" class="reviews-filter-empty">
+              <p class="reviews-filter-empty-text">No reviews match these filters.</p>
+              <button type="button" class="reviews-filter-clear" @click="clearReviewFilters">
+                Clear filters
+              </button>
+            </div>
+            <div v-if="(showReviewsLoadMore || showReviewsSeeLess) && displayedReviews.length" class="reviews-actions">
               <button
                 v-if="showReviewsLoadMore"
                 type="button"
@@ -321,7 +421,7 @@
                 v-if="showReviewsSeeLess"
                 type="button"
                 class="reviews-load-btn reviews-load-btn--secondary"
-                aria-label="Show only the first five reviews"
+                aria-label="Show only the first two reviews"
                 @click="seeLessReviews"
               >
                 See less
@@ -370,9 +470,134 @@
                 <span class="toggle-icon">{{ expandedSections.shipping ? '−' : '+' }}</span>
               </button>
               <div v-if="expandedSections.shipping" class="section-content">
-                <p>Dispatches within 3-4 business days. Cash on delivery available. Easy returns within 7 days of delivery.</p>
+                <p>Cash on delivery available. Easy returns within 7 days of delivery.</p>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Customer reviews (desktop only: below product image, left column) -->
+        <div
+          v-if="productReviewsSorted.length"
+          id="product-reviews-desktop"
+          class="reviews-section product-reviews product-reviews-desktop"
+        >
+          <div class="reviews-section-header">
+            <h2 class="section-title">Customer reviews</h2>
+            <p v-if="reviewsCount > 0" class="reviews-section-summary">
+              <span class="reviews-summary-rating">{{ averageRating }}</span> out of 5
+              <span class="reviews-summary-dot" aria-hidden="true">·</span>
+              {{ reviewsCount }} {{ reviewsCount === 1 ? 'review' : 'reviews' }}
+            </p>
+          </div>
+
+          <div class="reviews-filters" role="region" aria-label="Filter reviews">
+            <div class="reviews-filters-row">
+              <button
+                type="button"
+                class="reviews-filter-chip"
+                :class="{ 'reviews-filter-chip--active': reviewsFilterPhotosOnly }"
+                :aria-pressed="reviewsFilterPhotosOnly"
+                :disabled="reviewsWithPhotoCount === 0"
+                @click="reviewsFilterPhotosOnly = !reviewsFilterPhotosOnly"
+              >
+                With photos
+                <span v-if="reviewsWithPhotoCount" class="reviews-filter-count">({{ reviewsWithPhotoCount }})</span>
+              </button>
+            </div>
+            <div class="reviews-filters-row reviews-filters-row--stars" role="group" aria-label="Filter by star rating">
+              <button
+                type="button"
+                class="reviews-filter-chip"
+                :class="{ 'reviews-filter-chip--active': reviewsFilterStar === null }"
+                @click="setReviewStarFilter(null)"
+              >
+                All stars
+              </button>
+              <button
+                v-for="s in [1, 2, 3, 4, 5]"
+                :key="`d-star-${s}`"
+                type="button"
+                class="reviews-filter-chip"
+                :class="{ 'reviews-filter-chip--active': reviewsFilterStar === s }"
+                :disabled="starReviewCounts[s] === 0"
+                @click="toggleReviewStarFilter(s)"
+              >
+                {{ s }}★
+                <span class="reviews-filter-count">({{ starReviewCounts[s] }})</span>
+              </button>
+            </div>
+          </div>
+
+          <ul v-if="displayedReviews.length" class="reviews-list" role="list">
+            <li
+              v-for="review in displayedReviews"
+              :key="`d-${review.id ?? `${review.createdOn}-${review.description}`}`"
+              class="review-card"
+            >
+              <div class="review-card-top">
+                <div class="review-author-block">
+                  <div class="review-avatar" aria-hidden="true">{{ reviewerInitial(review.user) }}</div>
+                  <div class="review-author-meta">
+                    <div class="review-author-name">{{ reviewerDisplayName(review.user) }}</div>
+                    <time
+                      v-if="review.createdOn"
+                      class="review-date"
+                      :datetime="String(review.createdOn)"
+                    >{{ formatReviewDate(review.createdOn) }}</time>
+                  </div>
+                </div>
+                <div
+                  class="review-stars-row"
+                  :aria-label="`Rated ${Math.min(5, Math.max(0, Math.round(Number(review.rating) || 0)))} out of 5`"
+                >
+                  <span
+                    v-for="i in 5"
+                    :key="i"
+                    class="star review-star"
+                    :class="{ filled: i <= Math.min(5, Math.max(0, Math.round(Number(review.rating) || 0))) }"
+                  >★</span>
+                </div>
+              </div>
+              <p v-if="review.description" class="review-text">{{ review.description }}</p>
+              <div v-if="getReviewImageUrls(review).length" class="review-images">
+                <button
+                  v-for="(imgUrl, idx) in getReviewImageUrls(review)"
+                  :key="`d-${review.id}-img-${idx}`"
+                  type="button"
+                  class="review-thumb-btn"
+                  @click="reviewPreviewUrl = imgUrl"
+                >
+                  <img :src="imgUrl" :alt="`Photo from review ${idx + 1}`" loading="lazy" decoding="async" />
+                </button>
+              </div>
+            </li>
+          </ul>
+          <div v-else-if="filteredReviewsSorted.length === 0" class="reviews-filter-empty">
+            <p class="reviews-filter-empty-text">No reviews match these filters.</p>
+            <button type="button" class="reviews-filter-clear" @click="clearReviewFilters">
+              Clear filters
+            </button>
+          </div>
+          <div v-if="(showReviewsLoadMore || showReviewsSeeLess) && displayedReviews.length" class="reviews-actions">
+            <button
+              v-if="showReviewsLoadMore"
+              type="button"
+              class="reviews-load-btn"
+              aria-label="Load more reviews"
+              @click="loadMoreReviews"
+            >
+              Load more
+            </button>
+            <button
+              v-if="showReviewsSeeLess"
+              type="button"
+              class="reviews-load-btn reviews-load-btn--secondary"
+              aria-label="Show only the first two reviews"
+              @click="seeLessReviews"
+            >
+              See less
+            </button>
           </div>
         </div>
       </section>
@@ -750,16 +975,9 @@ const addCurrentToCart = async () => {
   )
   
   if (success) {
-    showToast('Added to cart')
+    showToast('Added to bag')
   } else {
     showToast('Failed to update cart. Please try again.')
-  }
-}
-
-const handleBuyNow = async () => {
-  await addCurrentToCart()
-  if (cart.totalQty.value > 0) {
-    router.push('/cart')
   }
 }
 
@@ -870,40 +1088,82 @@ const productReviewsSorted = computed(() => {
   })
 })
 
-const REVIEWS_PAGE_SIZE = 5
-const reviewsVisibleCount = ref(REVIEWS_PAGE_SIZE)
+function reviewStarBucket(review) {
+  const raw = Number(review?.rating)
+  if (!Number.isFinite(raw)) return null
+  return Math.min(5, Math.max(1, Math.round(raw)))
+}
 
-const totalReviewsListed = computed(() => productReviewsSorted.value.length)
-
-const displayedReviews = computed(() =>
-  productReviewsSorted.value.slice(0, reviewsVisibleCount.value)
-)
-
-watch(id, () => {
-  reviewsVisibleCount.value = REVIEWS_PAGE_SIZE
+/** Percent of reviews per star (1–5) for histogram bars */
+const ratingHistogramPercent = computed(() => {
+  const counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+  for (const r of productReviewsSorted.value) {
+    const raw = Number(r?.rating)
+    if (!Number.isFinite(raw) || raw < 1) continue
+    const rounded = Math.round(raw)
+    const bucket = Math.min(5, Math.max(1, rounded))
+    counts[bucket]++
+  }
+  const total = productReviewsSorted.value.length || 1
+  const pct = {}
+  for (let s = 1; s <= 5; s++) {
+    pct[s] = Math.round((counts[s] / total) * 100)
+  }
+  return pct
 })
 
-watch(totalReviewsListed, (n) => {
-  if (reviewsVisibleCount.value > n) {
-    reviewsVisibleCount.value = n
+const reviewsWithTextSnippet = computed(() =>
+  productReviewsSorted.value.filter(
+    (r) => typeof r?.description === 'string' && String(r.description).trim().length > 0
+  )
+)
+
+const rotatingReviewIndex = ref(0)
+
+function truncateReviewText(text, max) {
+  const t = String(text || '').trim()
+  if (t.length <= max) return t
+  return `${t.slice(0, max - 1).trim()}…`
+}
+
+const currentRotatingSnippet = computed(() => {
+  const list = reviewsWithTextSnippet.value
+  if (!list.length) return ''
+  const text = String(list[rotatingReviewIndex.value]?.description || '').trim()
+  return truncateReviewText(text, 130)
+})
+
+/** First batch of reviews shown; "Load more" adds this many each click */
+const REVIEWS_INITIAL_COUNT = 2
+const REVIEWS_LOAD_MORE_INCREMENT = 5
+const reviewsVisibleCount = ref(REVIEWS_INITIAL_COUNT)
+const reviewsFilterStar = ref(null)
+const reviewsFilterPhotosOnly = ref(false)
+
+watch(id, () => {
+  reviewsVisibleCount.value = REVIEWS_INITIAL_COUNT
+  rotatingReviewIndex.value = 0
+  reviewsFilterStar.value = null
+  reviewsFilterPhotosOnly.value = false
+})
+
+watch(reviewsWithTextSnippet, (list) => {
+  if (rotatingReviewIndex.value >= list.length) {
+    rotatingReviewIndex.value = 0
   }
 })
 
-const showReviewsLoadMore = computed(
-  () => totalReviewsListed.value > REVIEWS_PAGE_SIZE && reviewsVisibleCount.value < totalReviewsListed.value
-)
-
-const showReviewsSeeLess = computed(
-  () => totalReviewsListed.value > REVIEWS_PAGE_SIZE && reviewsVisibleCount.value >= totalReviewsListed.value
-)
-
-function loadMoreReviews() {
-  const total = totalReviewsListed.value
-  reviewsVisibleCount.value = Math.min(reviewsVisibleCount.value + REVIEWS_PAGE_SIZE, total)
-}
-
-function seeLessReviews() {
-  reviewsVisibleCount.value = REVIEWS_PAGE_SIZE
+function scrollToReviews() {
+  if (!import.meta.client) return
+  const isDesktop = window.matchMedia('(min-width: 768px)').matches
+  const id = isDesktop ? 'product-reviews-desktop' : 'product-reviews-mobile'
+  const el = document.getElementById(id)
+  el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  try {
+    history.replaceState(null, '', `#${id}`)
+  } catch {
+    /* ignore */
+  }
 }
 
 function formatReviewDate(iso) {
@@ -951,6 +1211,81 @@ function getReviewImageUrls(review) {
   return out
 }
 
+const filteredReviewsSorted = computed(() => {
+  let list = productReviewsSorted.value
+  if (reviewsFilterPhotosOnly.value) {
+    list = list.filter((r) => getReviewImageUrls(r).length > 0)
+  }
+  if (reviewsFilterStar.value != null) {
+    const star = reviewsFilterStar.value
+    list = list.filter((r) => reviewStarBucket(r) === star)
+  }
+  return list
+})
+
+const starReviewCounts = computed(() => {
+  const c = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+  for (const r of productReviewsSorted.value) {
+    const b = reviewStarBucket(r)
+    if (b) c[b]++
+  }
+  return c
+})
+
+const reviewsWithPhotoCount = computed(() =>
+  productReviewsSorted.value.filter((r) => getReviewImageUrls(r).length > 0).length
+)
+
+const totalReviewsListed = computed(() => filteredReviewsSorted.value.length)
+
+const displayedReviews = computed(() =>
+  filteredReviewsSorted.value.slice(0, reviewsVisibleCount.value)
+)
+
+watch(totalReviewsListed, (n) => {
+  if (reviewsVisibleCount.value > n) {
+    reviewsVisibleCount.value = n
+  }
+})
+
+watch([reviewsFilterStar, reviewsFilterPhotosOnly], () => {
+  const n = filteredReviewsSorted.value.length
+  reviewsVisibleCount.value = Math.min(REVIEWS_INITIAL_COUNT, n)
+})
+
+function setReviewStarFilter(star) {
+  reviewsFilterStar.value = star
+}
+
+function toggleReviewStarFilter(s) {
+  reviewsFilterStar.value = reviewsFilterStar.value === s ? null : s
+}
+
+function clearReviewFilters() {
+  reviewsFilterStar.value = null
+  reviewsFilterPhotosOnly.value = false
+}
+
+const showReviewsLoadMore = computed(
+  () => totalReviewsListed.value > 0 && reviewsVisibleCount.value < totalReviewsListed.value
+)
+
+const showReviewsSeeLess = computed(
+  () => totalReviewsListed.value > REVIEWS_INITIAL_COUNT && reviewsVisibleCount.value > REVIEWS_INITIAL_COUNT
+)
+
+function loadMoreReviews() {
+  const total = totalReviewsListed.value
+  reviewsVisibleCount.value = Math.min(
+    reviewsVisibleCount.value + REVIEWS_LOAD_MORE_INCREMENT,
+    total
+  )
+}
+
+function seeLessReviews() {
+  reviewsVisibleCount.value = REVIEWS_INITIAL_COUNT
+}
+
 const reviewPreviewUrl = ref(null)
 
 watch(reviewPreviewUrl, (url) => {
@@ -963,9 +1298,16 @@ const onReviewPreviewKeydown = (e) => {
   if (e.key === 'Escape') reviewPreviewUrl.value = null
 }
 
+let reviewSnippetRotateTimer = null
+
 onMounted(() => {
   if (import.meta.client) {
     window.addEventListener('keydown', onReviewPreviewKeydown)
+    reviewSnippetRotateTimer = setInterval(() => {
+      const list = reviewsWithTextSnippet.value
+      if (list.length <= 1) return
+      rotatingReviewIndex.value = (rotatingReviewIndex.value + 1) % list.length
+    }, 5000)
   }
 })
 
@@ -973,6 +1315,10 @@ onUnmounted(() => {
   if (import.meta.client) {
     window.removeEventListener('keydown', onReviewPreviewKeydown)
     document.body.style.overflow = ''
+    if (reviewSnippetRotateTimer) {
+      clearInterval(reviewSnippetRotateTimer)
+      reviewSnippetRotateTimer = null
+    }
   }
 })
 
@@ -1092,6 +1438,16 @@ const formatPrice = (price) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
   } catch {
     return `₹${n}`
+  }
+}
+
+/** Digits only (en-IN), for Rs. + amount layout */
+const formatPriceNumberOnly = (price) => {
+  const n = Number(price || 0)
+  try {
+    return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n)
+  } catch {
+    return String(Math.round(n))
   }
 }
 
@@ -1788,85 +2144,53 @@ watchEffect(() => {
   color: var(--text-muted);
 }
 
+/* Reviews: mobile = inside .info (after features); desktop = under image, left column */
+.product-reviews-desktop {
+  display: none;
+}
+
+.product-reviews-mobile {
+  display: block;
+}
+
 @media (min-width: 768px) {
+  .product-reviews-mobile {
+    display: none !important;
+  }
+
+  .product-reviews-desktop {
+    display: block;
+  }
+
   .product {
     grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
     align-items: start;
   }
-}
 
-/* Purchase bar */
-.purchase-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 160;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-  background: rgba(250, 250, 250, 0.96);
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(10px);
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-  align-items: center;
-}
+  .product .media {
+    grid-column: 1;
+    grid-row: 1;
+  }
 
-.purchase-price {
-  font-weight: 1000;
-  font-size: 1.05rem;
-  color: var(--text-dark);
-}
+  .product .product-reviews-desktop {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+    margin-bottom: 0;
+    border-top: none;
+    padding: 16px 14px 18px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 18px;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.06);
+  }
 
-.purchase-sub {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.add-btn {
-  border: none;
-  border-radius: 999px;
-  padding: 12px 16px;
-  font-weight: 1000;
-  cursor: pointer;
-  color: #fff;
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-}
-
-.add-btn:active {
-  transform: scale(0.98);
-}
-
-.qty {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.92);
-}
-
-.qty-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 999px;
-  border: none;
-  cursor: pointer;
-  font-size: 1.25rem;
-  font-weight: 900;
-  color: rgba(44, 62, 80, 0.92);
-  background: rgba(0, 0, 0, 0.06);
-}
-
-.qty-btn:active {
-  transform: scale(0.96);
-}
-
-.qty-val {
-  width: 30px;
-  text-align: center;
-  font-weight: 1000;
+  .product .info {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    min-width: 0;
+  }
 }
 
 .toast {
@@ -1887,11 +2211,9 @@ watchEffect(() => {
 /* Product Info Styles */
 .product-name {
   font-size: 1.5rem;
-  font-weight: 400;
-  color: #2c2c2c;
   margin: 0 0 16px;
-  line-height: 1.4;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  max-width: 100%;
+  /* font: Roboto Slab slab-serif — global main.css */
 }
 
 .rating-section {
@@ -1899,6 +2221,147 @@ watchEffect(() => {
   align-items: center;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+button.rating-section--link {
+  width: 100%;
+  max-width: 100%;
+  padding: 8px 4px 8px 0;
+  margin: 0 0 16px;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 10px;
+  outline-offset: 3px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.rating-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rating-hint {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #007185;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+}
+
+button.rating-section--link:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+button.rating-section--link:hover .reviews-text {
+  color: #007185;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+button.rating-section--link:hover .rating-hint {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+button.rating-section--link:focus-visible {
+  outline: 2px solid #2c2c2c;
+}
+
+/* Histogram + rotating snippets (below rating row) */
+.rating-breakdown-btn {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  margin: 0 0 14px;
+  padding: 10px 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: #fafafa;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.rating-breakdown-btn:hover {
+  background: #f3f4f6;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.rating-breakdown-btn:focus-visible {
+  outline: 2px solid #2c2c2c;
+  outline-offset: 2px;
+}
+
+.rating-histogram {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.rating-histogram-row {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.rating-histogram-label {
+  font-size: 0.7rem;
+  color: #666;
+  font-weight: 600;
+  text-align: right;
+}
+
+.rating-histogram-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #e0e0e0;
+  overflow: hidden;
+}
+
+.rating-histogram-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffa41c, #ff9900);
+  min-width: 0;
+  transition: width 0.35s ease;
+}
+
+.rating-snippet-wrap {
+  min-height: 2.8em;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  padding-top: 8px;
+}
+
+.rating-snippet-text {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #444;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.review-snippet-fade-enter-active,
+.review-snippet-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.review-snippet-fade-enter-from,
+.review-snippet-fade-leave-to {
+  opacity: 0;
 }
 
 .stars {
@@ -1957,22 +2420,68 @@ watchEffect(() => {
 
 .price-section {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
   margin-bottom: 24px;
 }
 
-.price {
-  font-size: 1.5rem;
-  font-weight: 400;
-  color: #2c2c2c;
+.price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px 12px;
+  flex-wrap: wrap;
+}
+
+/* Reference: large bold amount, slightly smaller "Rs." */
+.price-display {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
-.original-price {
+.price-currency {
   font-size: 1.125rem;
-  color: #999;
+  font-weight: 700;
+  color: #000;
+  line-height: 1;
+}
+
+.price-amount {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: #000;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.original-price-display {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
   text-decoration: line-through;
+  color: #888;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.original-price-currency {
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.original-price-amount {
+  font-size: 1.125rem;
+  font-weight: 500;
+}
+
+.price-tax-note {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.35;
+  color: #555;
+  letter-spacing: 0.01em;
 }
 
 .qty-total {
@@ -1981,106 +2490,110 @@ watchEffect(() => {
   margin-left: auto;
 }
 
-.quantity-section {
+.product-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
   margin-bottom: 24px;
 }
 
-.quantity-label {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #666;
-  margin-bottom: 8px;
+.quantity-section {
+  margin: 0;
+  width: 100%;
 }
 
 .quantity-controls {
   display: flex;
-  align-items: center;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  width: fit-content;
+  align-items: stretch;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 4px;
+  border: 1px solid #e0e0e0;
+  border-radius: 9999px;
+  background: #fff;
+  box-sizing: border-box;
 }
 
 .qty-btn {
-  width: 50px;
-  height: 50px;
+  flex: 0 0 48px;
+  width: 48px;
+  height: auto;
+  min-height: 44px;
+  align-self: center;
   border: none;
-  background: #fff;
-  color: #333;
-  font-size: 1.5rem;
-  font-weight: 500;
+  background: transparent;
+  font-size: 1.35rem;
+  font-weight: 400;
+  line-height: 1;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.15s ease, color 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 9999px;
+}
+
+.qty-btn--minus {
+  color: #b0b0b0;
+}
+
+.qty-btn--plus {
+  color: #111;
+  font-weight: 500;
 }
 
 .qty-btn:hover {
-  background: #f5f5f5;
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .qty-btn:active {
-  background: #e0e0e0;
-  transform: scale(0.95);
+  background: rgba(0, 0, 0, 0.07);
 }
 
 .qty-value {
-  min-width: 70px;
-  text-align: center;
-  font-weight: 500;
-  font-size: 1.125rem;
-}
-
-.action-buttons {
+  flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 24px;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.0625rem;
+  color: #111;
+  font-variant-numeric: tabular-nums;
 }
 
-.add-to-cart-btn,
-.buy-now-btn {
+.add-to-cart-btn {
   width: 100%;
-  padding: 16px;
-  border: 1px solid #2c2c2c;
-  background: #fff;
-  color: #2c2c2c;
-  font-size: 0.875rem;
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+  padding: 14px 20px;
+  min-height: 48px;
+  border: none;
+  border-radius: 9999px;
+  background: #ffd814;
+  color: #111;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s ease, transform 0.15s ease;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-}
-
-.buy-now-btn {
-  background: #2c2c2c;
-  color: #fff;
+  box-sizing: border-box;
 }
 
 .add-to-cart-btn:hover {
-  background: #f5f5f5;
+  background: #f0c800;
 }
 
-.buy-now-btn:hover {
-  background: #000;
+.add-to-cart-btn:active {
+  transform: scale(0.99);
 }
 
-.shipping-info {
-  padding: 16px;
-  background: #fafafa;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  margin-bottom: 32px;
-}
-
-.shipping-info p {
-  margin: 0;
-  font-size: 0.875rem;
-  color: #666;
-  line-height: 1.5;
+.add-to-cart-btn:focus-visible {
+  outline: 2px solid #111;
+  outline-offset: 2px;
 }
 
 .description-section,
@@ -2128,10 +2641,113 @@ watchEffect(() => {
   margin-bottom: 36px;
   padding: 20px 0 4px;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
+  scroll-margin-top: 80px;
 }
 
 .reviews-section-header {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+}
+
+.reviews-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.reviews-filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.reviews-filters-row--stars {
+  gap: 6px;
+}
+
+.reviews-filter-chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 11px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: #555;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+  font-family: inherit;
+}
+
+.reviews-filter-chip:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: rgba(0, 0, 0, 0.14);
+  color: #222;
+}
+
+.reviews-filter-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.reviews-filter-chip--active {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.reviews-filter-chip--active:hover:not(:disabled) {
+  background: #333;
+  border-color: #333;
+  color: #fff;
+}
+
+.reviews-filter-count {
+  font-size: 0.75rem;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.reviews-filter-empty {
+  padding: 20px 0 8px;
+  text-align: center;
+}
+
+.reviews-filter-empty-text {
+  margin: 0 0 12px;
+  font-size: 0.9375rem;
+  color: #666;
+  line-height: 1.45;
+}
+
+.reviews-filter-clear {
+  appearance: none;
+  padding: 6px 14px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #333;
+  background: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  font-family: inherit;
+}
+
+.reviews-filter-clear:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.22);
 }
 
 .reviews-section-summary {
@@ -2162,45 +2778,70 @@ watchEffect(() => {
 
 .reviews-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  margin-top: 20px;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 16px;
 }
 
 .reviews-load-btn {
   appearance: none;
-  padding: 12px 28px;
+  padding: 6px 12px;
   font-size: 0.8125rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border-radius: 999px;
-  border: 1px solid #2c2c2c;
-  background: #2c2c2c;
-  color: #fff;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.8);
+  color: #5c5c5c;
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
   font-family: inherit;
+  line-height: 1.35;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
 }
 
 .reviews-load-btn:hover {
-  background: #1a1a1a;
-  border-color: #1a1a1a;
+  background: #f7f7f7;
+  color: #333;
+  border-color: rgba(0, 0, 0, 0.14);
+  box-shadow: none;
 }
 
 .reviews-load-btn:focus-visible {
-  outline: 2px solid #2c2c2c;
-  outline-offset: 3px;
+  outline: 2px solid rgba(44, 44, 44, 0.35);
+  outline-offset: 2px;
 }
 
 .reviews-load-btn--secondary {
-  background: #fff;
-  color: #2c2c2c;
-  border-color: rgba(0, 0, 0, 0.2);
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: #888;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(0, 0, 0, 0.18);
 }
 
 .reviews-load-btn--secondary:hover {
-  background: #f5f5f5;
-  border-color: rgba(0, 0, 0, 0.25);
+  color: #555;
+  background: transparent;
+  text-decoration-color: rgba(0, 0, 0, 0.35);
+}
+
+.reviews-load-btn--secondary:focus-visible {
+  outline: 2px solid rgba(44, 44, 44, 0.25);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .review-card {

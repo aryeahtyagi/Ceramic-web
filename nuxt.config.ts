@@ -57,7 +57,13 @@ export default defineNuxtConfig({
       ],
       link: [
         // Global canonical URL (can be overridden per page)
-        { rel: 'canonical', href: 'https://svrve.com' }
+        { rel: 'canonical', href: 'https://svrve.com' },
+        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
+        {
+          rel: 'stylesheet',
+          href: 'https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@400;500&display=swap'
+        }
       ],
       script: [
         {
