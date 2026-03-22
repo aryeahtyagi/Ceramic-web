@@ -113,7 +113,36 @@
             </div>
             <div class="product-info">
               <h3 class="product-name">{{ product.name }}</h3>
-              <div class="product-price">Rs. {{ formatPrice(product.price) }}</div>
+              <div
+                v-if="product.reviewMeta.show"
+                class="product-reviews-meta"
+                :aria-label="
+                  product.reviewMeta.ratingDisplay
+                    ? `Rated ${product.reviewMeta.ratingDisplay} out of 5, ${product.reviewMeta.count} ${product.reviewMeta.count === 1 ? 'review' : 'reviews'}`
+                    : `${product.reviewMeta.count} ${product.reviewMeta.count === 1 ? 'review' : 'reviews'}`
+                "
+              >
+                <span v-if="product.reviewMeta.ratingDisplay" class="product-reviews-rating-row">
+                  <span class="product-reviews-stars" aria-hidden="true">
+                    <span
+                      v-for="i in 5"
+                      :key="i"
+                      class="star"
+                      :class="{ filled: i <= product.reviewMeta.starRating }"
+                    >★</span>
+                  </span>
+                  <span class="product-reviews-rating-num">{{ product.reviewMeta.ratingDisplay }}</span>
+                </span>
+                <span v-if="product.reviewMeta.count > 0" class="product-reviews-count">
+                  <template v-if="product.reviewMeta.ratingDisplay">·</template>
+                  {{ product.reviewMeta.count }}
+                  {{ product.reviewMeta.count === 1 ? 'review' : 'reviews' }}
+                </span>
+              </div>
+              <div class="product-price" :aria-label="`Price Rs. ${formatPriceAmount(product.price)}`">
+                <span class="product-price-currency">Rs.</span>
+                <span class="product-price-amount">{{ formatPriceAmount(product.price) }}</span>
+              </div>
             </div>
           </NuxtLink>
         </template>
@@ -137,6 +166,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { reviewsMetaForListing } from '../../utils/reviewsMetaForListing.js'
 
 const config = useRuntimeConfig()
 const apiBase = String(config.public.apiBase || '').replace(/\/$/, '')
@@ -298,6 +328,7 @@ const products = computed(() =>
     const category = extractCategoryFromDetails(p) || inferCategoryFromName(name) || 'plates'
     const backendImage = pickBackendImage(p)
     const discountPercent = p?.discounts?.enable ? Number(p?.discounts?.discount || 0) : 0
+    const reviewMeta = reviewsMetaForListing(p)
     return {
       id: p?.id,
       name,
@@ -306,6 +337,7 @@ const products = computed(() =>
       collection: category,
       image: backendImage || placeholderForCategory(category),
       discountPercent: discountPercent > 0 ? discountPercent : null,
+      reviewMeta,
       raw: p
     }
   })
@@ -341,12 +373,13 @@ const collectionName = (collectionId) => {
   return c?.name ?? 'Collection'
 }
 
-const formatPrice = (price) => {
+/** Digits only (en-IN) — pair with small “Rs.” in template */
+const formatPriceAmount = (price) => {
   const n = Number(price || 0)
   try {
     return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n)
   } catch {
-    return String(n)
+    return String(Math.round(n))
   }
 }
 
@@ -743,6 +776,7 @@ useHead({
 
 .product-name {
   font-size: 0.9375rem;
+  font-weight: 400;
   margin-bottom: 4px;
   letter-spacing: 0.01em;
   line-height: 1.3;
@@ -750,12 +784,71 @@ useHead({
 }
 
 .product-price {
-  font-size: 0.9375rem;
-  font-weight: 400;
-  color: #2c2c2c;
-  line-height: 1.5;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2em;
+  color: #111;
+  line-height: 1.35;
   letter-spacing: 0.01em;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.product-price-currency {
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #111;
+}
+
+.product-price-amount {
+  font-size: 1.1875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #111;
+  line-height: 1.2;
+}
+
+.product-reviews-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: #555;
+}
+
+.product-reviews-rating-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.product-reviews-stars {
+  display: inline-flex;
+  gap: 1px;
+}
+
+.product-reviews-meta .star {
+  font-size: 0.68rem;
+  line-height: 1;
+  color: #ddd;
+}
+
+.product-reviews-meta .star.filled {
+  color: #de7921;
+}
+
+.product-reviews-rating-num {
+  font-weight: 600;
+  color: #111;
+  font-variant-numeric: tabular-nums;
+}
+
+.product-reviews-count {
+  color: #666;
+  font-weight: 400;
 }
 
 /* Empty State */

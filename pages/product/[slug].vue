@@ -600,6 +600,62 @@
             </button>
           </div>
         </div>
+
+        <!-- Explore more (same category) — API fetched only when this block scrolls into view -->
+        <section
+          v-if="exploreApiType"
+          ref="exploreSectionRef"
+          class="explore-more"
+          aria-labelledby="explore-more-heading"
+        >
+          <h2 id="explore-more-heading" class="explore-more-title">Explore more like this</h2>
+
+          <div v-if="explorePending" class="explore-more-grid explore-more-grid--skeleton" aria-hidden="true">
+            <div v-for="n in 4" :key="`ex-skel-${n}`" class="explore-more-card explore-more-card--skeleton">
+              <div class="explore-more-card-image" />
+              <div class="explore-more-card-body">
+                <div class="explore-skel-line" />
+                <div class="explore-skel-line explore-skel-line--short" />
+              </div>
+            </div>
+          </div>
+
+          <p v-else-if="exploreError" class="explore-more-error" role="status">
+            Couldn’t load suggestions.
+            <button type="button" class="explore-more-retry" @click="retryExploreMore">Retry</button>
+          </p>
+
+          <div v-else-if="exploreCards.length" class="explore-more-grid">
+            <NuxtLink
+              v-for="(item, idx) in exploreCards"
+              :key="`explore-${item.id}`"
+              class="explore-more-card"
+              :to="item.href"
+              :aria-label="`View ${item.name}`"
+            >
+              <div class="explore-more-card-image">
+                <img
+                  class="explore-more-card-img"
+                  :src="item.image"
+                  :alt="item.name"
+                  :loading="idx < 4 ? 'eager' : 'lazy'"
+                  decoding="async"
+                  referrerpolicy="no-referrer"
+                  crossorigin="anonymous"
+                />
+                <span v-if="item.discountPercent" class="explore-more-discount">{{ item.discountPercent }}% OFF</span>
+              </div>
+              <div class="explore-more-card-body">
+                <h3 class="explore-more-card-name">{{ item.name }}</h3>
+                <span class="explore-more-card-price">{{ formatPrice(item.price) }}</span>
+              </div>
+            </NuxtLink>
+          </div>
+
+          <p v-else-if="exploreFetchDone" class="explore-more-empty" role="status">
+            No other products in this category yet.
+          </p>
+        </section>
       </section>
 
       <!-- Zoom Modal -->
@@ -659,7 +715,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
 import { joinURL } from 'ufo'
 
 const route = useRoute()
@@ -776,6 +832,100 @@ const product = computed(() => {
     reviews: Array.isArray(p?.reviews) ? p.reviews : []
   }
 })
+
+/** Segment for GET /collections/type/{type} — same as collections page (plates, mugs, …) */
+const exploreApiType = computed(() => {
+  const p = product.value
+  if (!p?.id) return null
+  const cat = p.category
+  if (!cat) return null
+  return String(cat).toLowerCase().replace(/\s+/g, '-')
+})
+
+const exploreSectionRef = ref(null)
+const exploreFetchStarted = ref(false)
+const exploreFetchDone = ref(false)
+const exploreList = ref([])
+const explorePending = ref(false)
+const exploreError = ref(null)
+let exploreObserver = null
+
+const slugify = (s) =>
+  String(s || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+const exploreCards = computed(() =>
+  exploreList.value.map((p) => {
+    const name = p?.name || 'Ceramic Product'
+    const cat = extractCategoryFromDetails(p) || product.value?.category || 'plates'
+    const image = pickBackendImage(p) || placeholderForCategory(cat)
+    const discountPercent = p?.discounts?.enable ? Number(p?.discounts?.discount || 0) : 0
+    return {
+      id: p.id,
+      name,
+      price: Number(p?.price || 0),
+      image,
+      href: `/product/${slugify(name)}-${p.id}`,
+      discountPercent: discountPercent > 0 ? discountPercent : null
+    }
+  })
+)
+
+function disconnectExploreObserver() {
+  exploreObserver?.disconnect()
+  exploreObserver = null
+}
+
+async function fetchExploreMore(isRetry = false) {
+  if (explorePending.value) return
+  const t = exploreApiType.value
+  const pid = product.value?.id
+  if (!t || pid == null) return
+  if (!isRetry && exploreFetchStarted.value) return
+  exploreFetchStarted.value = true
+  explorePending.value = true
+  exploreError.value = null
+  try {
+    const list = await $fetch(`${apiBase}/collections/type/${encodeURIComponent(t)}`)
+    const arr = Array.isArray(list) ? list : []
+    exploreList.value = arr.filter((p) => Number(p?.id) !== Number(pid))
+    exploreFetchDone.value = true
+  } catch (e) {
+    exploreError.value = e
+    exploreFetchDone.value = true
+  } finally {
+    explorePending.value = false
+  }
+}
+
+function retryExploreMore() {
+  exploreFetchStarted.value = false
+  exploreFetchDone.value = false
+  exploreError.value = null
+  exploreList.value = []
+  fetchExploreMore(true)
+}
+
+function connectExploreObserver() {
+  if (!import.meta.client) return
+  disconnectExploreObserver()
+  const el = exploreSectionRef.value
+  if (!el) return
+  exploreObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        fetchExploreMore(false)
+        disconnectExploreObserver()
+      }
+    },
+    { root: null, rootMargin: '240px 0px 0px 0px', threshold: 0 }
+  )
+  exploreObserver.observe(el)
+}
 
 const gallery = computed(() => {
   const p = product.value
@@ -1145,6 +1295,12 @@ watch(id, () => {
   rotatingReviewIndex.value = 0
   reviewsFilterStar.value = null
   reviewsFilterPhotosOnly.value = false
+  exploreList.value = []
+  exploreFetchStarted.value = false
+  exploreFetchDone.value = false
+  exploreError.value = null
+  explorePending.value = false
+  nextTick(() => connectExploreObserver())
 })
 
 watch(reviewsWithTextSnippet, (list) => {
@@ -1308,10 +1464,12 @@ onMounted(() => {
       if (list.length <= 1) return
       rotatingReviewIndex.value = (rotatingReviewIndex.value + 1) % list.length
     }, 5000)
+    nextTick(() => connectExploreObserver())
   }
 })
 
 onUnmounted(() => {
+  disconnectExploreObserver()
   if (import.meta.client) {
     window.removeEventListener('keydown', onReviewPreviewKeydown)
     document.body.style.overflow = ''
@@ -3220,6 +3378,175 @@ button.rating-section--link:focus-visible {
 .zoom-modal-enter-from,
 .zoom-modal-leave-to {
   opacity: 0;
+}
+
+/* Explore more like this (lazy-loaded) */
+.explore-more {
+  margin-top: 28px;
+  padding-top: 28px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  scroll-margin-top: 72px;
+}
+
+.explore-more-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #2c2c2c;
+  margin: 0 0 18px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.explore-more-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .explore-more-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .explore-more-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.explore-more-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background: #fff;
+  overflow: hidden;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.explore-more-card:hover {
+  opacity: 0.92;
+}
+
+.explore-more-card:active {
+  transform: scale(0.99);
+}
+
+.explore-more-card-image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background: #f8f8f8;
+  overflow: hidden;
+}
+
+.explore-more-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.explore-more-discount {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, #1f7a5c, #2aa87d);
+  box-shadow: 0 6px 14px rgba(31, 122, 92, 0.2);
+}
+
+.explore-more-card-body {
+  padding: 14px 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.explore-more-card-name {
+  font-size: 0.875rem;
+  margin: 0;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.explore-more-card-price {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: #2c2c2c;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.explore-more-error {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #666;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.explore-more-retry {
+  appearance: none;
+  padding: 5px 12px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.explore-more-retry:hover {
+  background: #f5f5f5;
+}
+
+.explore-more-empty {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #777;
+}
+
+.explore-more-grid--skeleton .explore-more-card--skeleton {
+  pointer-events: none;
+}
+
+.explore-more-card--skeleton .explore-more-card-image {
+  background: linear-gradient(90deg, #eee 0%, #f5f5f5 50%, #eee 100%);
+  background-size: 200% 100%;
+  animation: explore-skel-shimmer 1.2s ease-in-out infinite;
+}
+
+.explore-skel-line {
+  height: 12px;
+  border-radius: 4px;
+  background: #ececec;
+  width: 100%;
+}
+
+.explore-skel-line--short {
+  width: 55%;
+}
+
+@keyframes explore-skel-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
 }
 </style>
 
