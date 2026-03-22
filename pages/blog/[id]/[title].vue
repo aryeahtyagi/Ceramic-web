@@ -1407,4 +1407,181 @@ const formatPrice = (price) => {
   transform: scale(0.96) translateY(8px);
   opacity: 0.9;
 }
+
+/* ---------------------------------------------------------------------------
+   Desktop layout & polish (1024px+) — mobile / tablet base styles unchanged
+   --------------------------------------------------------------------------- */
+@media (min-width: 1024px) {
+  .blog-detail-page {
+    background: linear-gradient(180deg, #f8f8f8 0%, #ececec 45%, #e8e8e8 100%);
+    padding-bottom: 48px;
+  }
+
+  .content {
+    max-width: 1120px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+
+  .blog-article {
+    margin-top: 24px;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow:
+      0 4px 6px rgba(0, 0, 0, 0.04),
+      0 12px 32px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Sticky bar inside the card (replaces floating overlay on large screens) */
+  .article-nav {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    padding: 16px 28px;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    pointer-events: auto;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+  }
+
+  .nav-back-btn,
+  .nav-share-btn {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  .featured-image {
+    aspect-ratio: 21 / 9;
+    max-height: 440px;
+    margin: 0;
+    border-radius: 0;
+  }
+
+  .featured-image img {
+    object-position: center center;
+  }
+
+  .article-content {
+    max-width: 680px;
+    padding: 48px 56px 56px;
+    margin: 0 auto;
+    background: #fff;
+  }
+
+  .article-title {
+    font-size: 2.75rem;
+    line-height: 1.12;
+    font-weight: 800;
+    letter-spacing: -0.038em;
+    margin-bottom: 20px;
+  }
+
+  .article-meta {
+    margin-bottom: 40px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+    font-size: 0.8125rem;
+    letter-spacing: 0.08em;
+  }
+
+  .blog-content {
+    font-size: 1.125rem;
+    line-height: 1.88;
+    color: #2a2a2a;
+  }
+
+  .blog-content :deep(p) {
+    max-width: 65ch;
+  }
+
+  .blog-content :deep(h2) {
+    margin-top: 2.75rem;
+  }
+
+  .blog-content :deep(blockquote) {
+    border-left-width: 4px;
+    border-left-color: #2c2c2c;
+    background: linear-gradient(90deg, #f9f9f9 0%, #fff 100%);
+    border-radius: 0 8px 8px 0;
+    padding: 1.75rem 2rem;
+    font-size: 1.0625rem;
+  }
+
+  .blog-content :deep(.blog-content-image) {
+    border-radius: 12px;
+    margin: 2.5rem auto;
+    max-width: 100%;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  }
+
+  .blog-inline-newsletter {
+    margin: 2.5rem auto 0;
+    max-width: 100%;
+    padding: 1.75rem 2rem;
+    border-radius: 14px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: linear-gradient(145deg, #fafafa 0%, #f3f3f3 50%, #fafafa 100%);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  }
+
+  .blog-inline-newsletter-label {
+    font-size: 1.0625rem;
+  }
+
+  .article-updated {
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    font-size: 0.8125rem;
+    color: #6b6b6b;
+  }
+
+  /* Related products: grid instead of horizontal scroll */
+  .related-products-section {
+    max-width: 1120px;
+    margin: 32px auto 0;
+    padding: 40px 40px 56px;
+    background: #fff;
+    border-radius: 20px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow:
+      0 4px 6px rgba(0, 0, 0, 0.04),
+      0 12px 28px rgba(0, 0, 0, 0.06);
+  }
+
+  .related-products-title {
+    font-size: 1.375rem;
+    margin-bottom: 1.75rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  }
+
+  .products-carousel-wrapper {
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .products-carousel {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1.25rem;
+    padding-bottom: 0;
+  }
+
+  .product-card {
+    flex: none;
+    width: 100%;
+    border-radius: 12px;
+  }
+
+  .product-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  }
+}
 </style>
