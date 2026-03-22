@@ -253,6 +253,82 @@
             </ul>
           </div>
 
+          <!-- Customer reviews -->
+          <div v-if="productReviewsSorted.length" class="reviews-section">
+            <div class="reviews-section-header">
+              <h2 class="section-title">Customer reviews</h2>
+              <p v-if="reviewsCount > 0" class="reviews-section-summary">
+                <span class="reviews-summary-rating">{{ averageRating }}</span> out of 5
+                <span class="reviews-summary-dot" aria-hidden="true">·</span>
+                {{ reviewsCount }} {{ reviewsCount === 1 ? 'review' : 'reviews' }}
+              </p>
+            </div>
+            <ul class="reviews-list" role="list">
+              <li
+                v-for="review in displayedReviews"
+                :key="review.id ?? `${review.createdOn}-${review.description}`"
+                class="review-card"
+              >
+                <div class="review-card-top">
+                  <div class="review-author-block">
+                    <div class="review-avatar" aria-hidden="true">{{ reviewerInitial(review.user) }}</div>
+                    <div class="review-author-meta">
+                      <div class="review-author-name">{{ reviewerDisplayName(review.user) }}</div>
+                      <time
+                        v-if="review.createdOn"
+                        class="review-date"
+                        :datetime="String(review.createdOn)"
+                      >{{ formatReviewDate(review.createdOn) }}</time>
+                    </div>
+                  </div>
+                  <div
+                    class="review-stars-row"
+                    :aria-label="`Rated ${Math.min(5, Math.max(0, Math.round(Number(review.rating) || 0)))} out of 5`"
+                  >
+                    <span
+                      v-for="i in 5"
+                      :key="i"
+                      class="star review-star"
+                      :class="{ filled: i <= Math.min(5, Math.max(0, Math.round(Number(review.rating) || 0))) }"
+                    >★</span>
+                  </div>
+                </div>
+                <p v-if="review.description" class="review-text">{{ review.description }}</p>
+                <div v-if="getReviewImageUrls(review).length" class="review-images">
+                  <button
+                    v-for="(imgUrl, idx) in getReviewImageUrls(review)"
+                    :key="`${review.id}-img-${idx}`"
+                    type="button"
+                    class="review-thumb-btn"
+                    @click="reviewPreviewUrl = imgUrl"
+                  >
+                    <img :src="imgUrl" :alt="`Photo from review ${idx + 1}`" loading="lazy" decoding="async" />
+                  </button>
+                </div>
+              </li>
+            </ul>
+            <div v-if="showReviewsLoadMore || showReviewsSeeLess" class="reviews-actions">
+              <button
+                v-if="showReviewsLoadMore"
+                type="button"
+                class="reviews-load-btn"
+                aria-label="Load more reviews"
+                @click="loadMoreReviews"
+              >
+                Load more
+              </button>
+              <button
+                v-if="showReviewsSeeLess"
+                type="button"
+                class="reviews-load-btn reviews-load-btn--secondary"
+                aria-label="Show only the first five reviews"
+                @click="seeLessReviews"
+              >
+                See less
+              </button>
+            </div>
+          </div>
+
           <!-- Expandable Sections -->
           <div class="expandable-sections">
             <div 
@@ -334,6 +410,23 @@
           </div>
         </div>
       </Transition>
+
+      <!-- Review photo lightbox -->
+      <Transition name="zoom-modal">
+        <div
+          v-if="reviewPreviewUrl"
+          class="review-preview-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Review photo"
+          @click.self="reviewPreviewUrl = null"
+        >
+          <button type="button" class="review-preview-close" aria-label="Close" @click="reviewPreviewUrl = null">
+            ×
+          </button>
+          <img :src="reviewPreviewUrl" alt="" class="review-preview-img" />
+        </div>
+      </Transition>
     </div>
 
     <div v-if="toast" class="toast" role="status" aria-live="polite">{{ toast }}</div>
@@ -341,7 +434,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watchEffect } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
 import { joinURL } from 'ufo'
 
 const route = useRoute()
@@ -452,7 +545,10 @@ const product = computed(() => {
     lovePoints: Array.isArray(p?.productLovePoints) ? p.productLovePoints : [],
     productDetails: Array.isArray(p?.productDetails) ? p.productDetails : [],
     images: Array.isArray(p?.images) ? p.images : [],
-    hero: pickBackendImage(p)
+    hero: pickBackendImage(p),
+    /** From GET /collections/{id} — aggregate rating & count */
+    reviewsMetaData: p?.reviewsMetaData && typeof p.reviewsMetaData === 'object' ? p.reviewsMetaData : null,
+    reviews: Array.isArray(p?.reviews) ? p.reviews : []
   }
 })
 
@@ -727,24 +823,29 @@ const detailsRows = computed(() => {
   return rows
 })
 
-// Reviews
+// Reviews — prefer reviewsMetaData from product API; fallback to computing from reviews[]
 const reviewsCount = computed(() => {
   const p = product.value
-  if (p?.reviewsMetaData?.reviews) {
-    return Number(p.reviewsMetaData.reviews) || 0
+  const meta = p?.reviewsMetaData
+  if (meta && meta.reviews != null && meta.reviews !== '') {
+    const n = Number(meta.reviews)
+    return Number.isFinite(n) ? n : 0
   }
   return Array.isArray(p?.reviews) ? p.reviews.length : 0
 })
 
 const averageRating = computed(() => {
   const p = product.value
-  if (p?.reviewsMetaData?.rating) {
-    const rating = Number(p.reviewsMetaData.rating)
-    return rating > 0 ? rating.toFixed(1) : '0.0'
+  const meta = p?.reviewsMetaData
+  if (meta && meta.rating != null && meta.rating !== '') {
+    const rating = Number(meta.rating)
+    if (Number.isFinite(rating)) {
+      return rating.toFixed(1)
+    }
   }
   const reviews = p?.reviews
   if (Array.isArray(reviews) && reviews.length > 0) {
-    const ratings = reviews.map(r => Number(r.rating || 0)).filter(r => r > 0)
+    const ratings = reviews.map((r) => Number(r.rating || 0)).filter((r) => r > 0)
     if (ratings.length > 0) {
       const avg = ratings.reduce((sum, r) => sum + r, 0) / ratings.length
       return avg.toFixed(1)
@@ -754,8 +855,125 @@ const averageRating = computed(() => {
 })
 
 const starRating = computed(() => {
-  const rating = Number(averageRating.value)
-  return Math.round(rating)
+  const n = Number(averageRating.value)
+  if (!Number.isFinite(n)) return 0
+  return Math.min(5, Math.max(0, Math.round(n)))
+})
+
+const productReviewsSorted = computed(() => {
+  const list = product.value?.reviews
+  if (!Array.isArray(list) || !list.length) return []
+  return [...list].sort((a, b) => {
+    const ta = new Date(a?.createdOn || 0).getTime()
+    const tb = new Date(b?.createdOn || 0).getTime()
+    return tb - ta
+  })
+})
+
+const REVIEWS_PAGE_SIZE = 5
+const reviewsVisibleCount = ref(REVIEWS_PAGE_SIZE)
+
+const totalReviewsListed = computed(() => productReviewsSorted.value.length)
+
+const displayedReviews = computed(() =>
+  productReviewsSorted.value.slice(0, reviewsVisibleCount.value)
+)
+
+watch(id, () => {
+  reviewsVisibleCount.value = REVIEWS_PAGE_SIZE
+})
+
+watch(totalReviewsListed, (n) => {
+  if (reviewsVisibleCount.value > n) {
+    reviewsVisibleCount.value = n
+  }
+})
+
+const showReviewsLoadMore = computed(
+  () => totalReviewsListed.value > REVIEWS_PAGE_SIZE && reviewsVisibleCount.value < totalReviewsListed.value
+)
+
+const showReviewsSeeLess = computed(
+  () => totalReviewsListed.value > REVIEWS_PAGE_SIZE && reviewsVisibleCount.value >= totalReviewsListed.value
+)
+
+function loadMoreReviews() {
+  const total = totalReviewsListed.value
+  reviewsVisibleCount.value = Math.min(reviewsVisibleCount.value + REVIEWS_PAGE_SIZE, total)
+}
+
+function seeLessReviews() {
+  reviewsVisibleCount.value = REVIEWS_PAGE_SIZE
+}
+
+function formatReviewDate(iso) {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ''
+    return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(d)
+  } catch {
+    return ''
+  }
+}
+
+function reviewerDisplayName(user) {
+  if (!user || typeof user !== 'object') return 'Verified buyer'
+  const raw = user.username || user.email || ''
+  const s = String(raw).trim()
+  if (!s) return 'Verified buyer'
+  if (s.includes('@')) {
+    const local = s.split('@')[0]
+    return local || 'Verified buyer'
+  }
+  return s.length > 36 ? `${s.slice(0, 33)}…` : s
+}
+
+function reviewerInitial(user) {
+  const name = reviewerDisplayName(user)
+  const ch = name.charAt(0)
+  return ch ? ch.toUpperCase() : '?'
+}
+
+function getReviewImageUrls(review) {
+  const images = review?.images
+  if (images == null || images === '') return []
+  const list = Array.isArray(images) ? images : [images]
+  const out = []
+  for (const item of list) {
+    if (item == null || item === '') continue
+    const url =
+      typeof item === 'string'
+        ? item
+        : String(item.imageUrl || item.url || item.image || '').trim()
+    if (url) out.push(resolveImageUrl(url))
+  }
+  return out
+}
+
+const reviewPreviewUrl = ref(null)
+
+watch(reviewPreviewUrl, (url) => {
+  if (import.meta.client) {
+    document.body.style.overflow = url ? 'hidden' : ''
+  }
+})
+
+const onReviewPreviewKeydown = (e) => {
+  if (e.key === 'Escape') reviewPreviewUrl.value = null
+}
+
+onMounted(() => {
+  if (import.meta.client) {
+    window.addEventListener('keydown', onReviewPreviewKeydown)
+  }
+})
+
+onUnmounted(() => {
+  if (import.meta.client) {
+    window.removeEventListener('keydown', onReviewPreviewKeydown)
+    document.body.style.overflow = ''
+  }
 })
 
 // Material & Specifications
@@ -1685,12 +1903,18 @@ watchEffect(() => {
 
 .stars {
   display: flex;
-  gap: 2px;
+  gap: 4px;
+  align-items: center;
 }
 
 .star {
-  font-size: 1rem;
+  font-size: 1.35rem;
+  line-height: 1;
   color: #ddd;
+}
+
+.rating-section .stars .star {
+  font-size: 1.65rem;
 }
 
 .star.filled {
@@ -1897,6 +2121,246 @@ watchEffect(() => {
 
 .feature-item:last-child {
   border-bottom: none;
+}
+
+/* Customer reviews */
+.reviews-section {
+  margin-bottom: 36px;
+  padding: 20px 0 4px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.reviews-section-header {
+  margin-bottom: 20px;
+}
+
+.reviews-section-summary {
+  margin: 8px 0 0;
+  font-size: 0.9375rem;
+  color: #555;
+  line-height: 1.5;
+}
+
+.reviews-summary-rating {
+  font-weight: 700;
+  color: #2c2c2c;
+}
+
+.reviews-summary-dot {
+  margin: 0 6px;
+  color: #bbb;
+}
+
+.reviews-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reviews-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.reviews-load-btn {
+  appearance: none;
+  padding: 12px 28px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  border: 1px solid #2c2c2c;
+  background: #2c2c2c;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  font-family: inherit;
+}
+
+.reviews-load-btn:hover {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+}
+
+.reviews-load-btn:focus-visible {
+  outline: 2px solid #2c2c2c;
+  outline-offset: 3px;
+}
+
+.reviews-load-btn--secondary {
+  background: #fff;
+  color: #2c2c2c;
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.reviews-load-btn--secondary:hover {
+  background: #f5f5f5;
+  border-color: rgba(0, 0, 0, 0.25);
+}
+
+.review-card {
+  padding: 18px 16px;
+  background: linear-gradient(180deg, #fafafa 0%, #fff 48%);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.review-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.review-author-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.review-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e8eef2 0%, #dce4ea 100%);
+  color: #2c3e50;
+  font-weight: 700;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.review-author-meta {
+  min-width: 0;
+}
+
+.review-author-name {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: #1a1a1a;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.review-date {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8125rem;
+  color: #888;
+}
+
+.review-stars-row {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.review-stars-row .review-star {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.review-text {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: #444;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.review-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.review-thumb-btn {
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: zoom-in;
+  background: #f5f5f5;
+  width: 88px;
+  height: 88px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.review-thumb-btn:hover {
+  transform: scale(1.03);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.review-thumb-btn:focus-visible {
+  outline: 2px solid #2c2c2c;
+  outline-offset: 2px;
+}
+
+.review-thumb-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.review-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  cursor: zoom-out;
+}
+
+.review-preview-img {
+  max-width: min(96vw, 900px);
+  max-height: 88vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  cursor: default;
+}
+
+.review-preview-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+.review-preview-close:hover {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .expandable-sections {

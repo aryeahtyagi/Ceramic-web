@@ -3,8 +3,11 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "nuxt dev",
-    "dev:local": "node scripts/setup-local-env.js && nuxt dev",
+    "clean": "node scripts/clean.cjs",
+    "prepare:nuxt": "nuxi prepare",
+    "dev:fresh": "npm run clean && npx nuxi prepare && cross-env NUXT_PUBLIC_API_BASE=http://localhost:9090 NUXT_PUBLIC_SITE_URL=http://localhost:3000 nuxt dev",
+    "dev": "cross-env NUXT_PUBLIC_API_BASE=http://localhost:9090 NUXT_PUBLIC_SITE_URL=http://localhost:3000 nuxt dev",
+    "dev:local": "node scripts/setup-local-env.js && cross-env NUXT_PUBLIC_API_BASE=http://localhost:9090 NUXT_PUBLIC_SITE_URL=http://localhost:3000 nuxt dev",
     "dev:prod": "node scripts/setup-prod-env.js && nuxt dev",
     "build": "nuxt build",
     "build:local": "cross-env NUXT_PUBLIC_API_BASE=http://localhost:9090 NUXT_PUBLIC_SITE_URL=http://localhost:3000 nuxt build",
