@@ -64,6 +64,25 @@
           <!-- Blog Content -->
           <div class="blog-content" v-html="processedContent"></div>
 
+          <!-- Always-available newsletter CTA — same modal as timed popup (guests) -->
+          <div class="blog-inline-newsletter">
+            <p class="blog-inline-newsletter-label">Enjoyed this article?</p>
+            <button
+              type="button"
+              class="blog-inline-newsletter-btn"
+              :disabled="isAuthenticated"
+              @click="handleNewsletterSubscribeClick"
+            >
+              Subscribe to newsletter
+            </button>
+            <p v-if="!isAuthenticated" class="blog-inline-newsletter-hint">
+              Log in to get updates and more posts like this.
+            </p>
+            <p v-else class="blog-inline-newsletter-hint blog-inline-newsletter-hint--signed-in">
+              You’re signed in — we’ll use your account for updates and new posts.
+            </p>
+          </div>
+
           <!-- Updated / Last modified (bottom, before related products) -->
           <p v-if="blog.updatedAt || blog.publishedAt" class="article-updated">Last modified on {{ formatDateShort(blog.updatedAt || blog.publishedAt) }}</p>
         </div>
@@ -97,13 +116,57 @@
         </div>
       </section>
     </div>
+
+    <!-- Newsletter / login prompt (client-only, 12s after article loads) -->
+    <Teleport to="body">
+      <Transition name="blog-nl-popup">
+        <div
+          v-if="showNewsletterPopup"
+          class="blog-nl-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="blog-nl-title"
+          @click.self="dismissNewsletterPopup"
+        >
+          <div class="blog-nl-modal">
+            <button
+              type="button"
+              class="blog-nl-close"
+              aria-label="Close"
+              @click="dismissNewsletterPopup"
+            >
+              ×
+            </button>
+            <h2 id="blog-nl-title" class="blog-nl-title">Subscribe to our newsletter</h2>
+            <p class="blog-nl-text">
+              Log in to get updates and receive more amazing blogs like this one — straight to you.
+            </p>
+            <div class="blog-nl-actions">
+              <NuxtLink
+                class="blog-nl-cta"
+                :to="loginSubscribeUrl"
+                @click="dismissNewsletterPopup"
+              >
+                Log in &amp; subscribe
+              </NuxtLink>
+              <button type="button" class="blog-nl-later" @click="dismissNewsletterPopup">
+                Maybe later
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, watch, onScopeDispose, onMounted, nextTick } from 'vue'
+import { computed, ref, watch, onScopeDispose, onMounted, onUnmounted, nextTick } from 'vue'
+import { BLOG_NEWSLETTER_DISMISS_KEY } from '~/utils/blogNewsletterStorage.js'
 
 const route = useRoute()
+/** Top-level ref so template unwraps correctly (nested auth.isAuthenticated does NOT unwrap in templates) */
+const { isAuthenticated } = useAuth()
 const config = useRuntimeConfig()
 const apiBase = String(config.public.apiBase || '').replace(/\/$/, '')
 const siteUrl = String(config.public.siteUrl || 'https://svrve.com').replace(/\/$/, '')
@@ -161,6 +224,105 @@ const relatedProducts = computed(() => {
 const carouselRef = ref(null)
 const featuredImageRef = ref(null)
 const featuredImageWrapRef = ref(null)
+
+/** Newsletter popup — 12s after successful load; login CTA for guests */
+const showNewsletterPopup = ref(false)
+const NEWSLETTER_DELAY_MS = 12_000
+let newsletterTimerId = null
+
+const loginSubscribeUrl = computed(() => {
+  const path = route.fullPath || '/blog'
+  return `/login?redirect=${encodeURIComponent(path)}`
+})
+
+function clearNewsletterTimer() {
+  if (newsletterTimerId != null && typeof window !== 'undefined') {
+    window.clearTimeout(newsletterTimerId)
+    newsletterTimerId = null
+  }
+}
+
+function dismissNewsletterPopup() {
+  showNewsletterPopup.value = false
+  if (import.meta.client) {
+    try {
+      sessionStorage.setItem(BLOG_NEWSLETTER_DISMISS_KEY, '1')
+    } catch {
+      /* ignore */
+    }
+    document.body.style.overflow = ''
+  }
+}
+
+/** Open the same subscribe modal from the inline page button (ignores “dismissed” session flag) */
+function openNewsletterSubscribeFromPage() {
+  if (!import.meta.client) return
+  if (isAuthenticated.value) return
+  showNewsletterPopup.value = true
+  document.body.style.overflow = 'hidden'
+}
+
+function handleNewsletterSubscribeClick() {
+  if (isAuthenticated.value) return
+  openNewsletterSubscribeFromPage()
+}
+
+function canShowNewsletterPopup() {
+  if (!import.meta.client) return false
+  if (!blog.value || pending.value || error.value) return false
+  if (isAuthenticated.value) return false
+  try {
+    if (sessionStorage.getItem(BLOG_NEWSLETTER_DISMISS_KEY)) return false
+  } catch {
+    /* ignore */
+  }
+  return true
+}
+
+function scheduleNewsletterPopup() {
+  clearNewsletterTimer()
+  if (!canShowNewsletterPopup()) return
+
+  newsletterTimerId = window.setTimeout(() => {
+    newsletterTimerId = null
+    if (!canShowNewsletterPopup()) return
+    showNewsletterPopup.value = true
+  }, NEWSLETTER_DELAY_MS)
+}
+
+/** Must run on client after mount — SSR / first paint never schedules a browser timer */
+function resetAndScheduleNewsletterPopup() {
+  showNewsletterPopup.value = false
+  if (import.meta.client) document.body.style.overflow = ''
+  clearNewsletterTimer()
+  nextTick(() => scheduleNewsletterPopup())
+}
+
+onMounted(() => {
+  nextTick(() => {
+    resetAndScheduleNewsletterPopup()
+  })
+})
+
+watch(
+  () => [String(blogId ?? ''), blog.value?.id, pending.value, error.value, isAuthenticated.value],
+  () => {
+    resetAndScheduleNewsletterPopup()
+  },
+  { immediate: true, flush: 'post' }
+)
+
+watch(showNewsletterPopup, (open) => {
+  if (!import.meta.client) return
+  document.body.style.overflow = open ? 'hidden' : ''
+})
+
+onUnmounted(() => {
+  clearNewsletterTimer()
+  if (import.meta.client) {
+    document.body.style.overflow = ''
+  }
+})
 
 // Ensure featured image never has explicit width/height (sizing via CSS only)
 function stripFeaturedImageDimensions() {
@@ -691,6 +853,67 @@ const formatPrice = (price) => {
   color: #5c5c5c;
 }
 
+/* Inline newsletter CTA (below article body; guests only) */
+.blog-inline-newsletter {
+  margin: 2rem 0 0;
+  padding: 1.25rem 1.125rem;
+  background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.blog-inline-newsletter-label {
+  margin: 0 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #111;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.blog-inline-newsletter-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #fff;
+  background: #111;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.blog-inline-newsletter-btn:hover {
+  background: #333;
+}
+
+.blog-inline-newsletter-btn:active {
+  transform: scale(0.99);
+}
+
+.blog-inline-newsletter-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.blog-inline-newsletter-hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #666;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.blog-inline-newsletter-hint--signed-in {
+  color: #2d6a4f;
+}
+
 .article-updated {
   margin: 2rem 0 0;
   font-size: 0.875rem;
@@ -1055,5 +1278,133 @@ const formatPrice = (price) => {
   .product-card {
     flex: 0 0 200px;
   }
+}
+
+/* Newsletter / login popup (teleported to body) */
+.blog-nl-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.blog-nl-modal {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  padding: 28px 24px 24px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+}
+
+.blog-nl-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.blog-nl-close:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #111;
+}
+
+.blog-nl-title {
+  margin: 0 32px 12px 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.blog-nl-text {
+  margin: 0 0 22px;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: #444;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.blog-nl-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.blog-nl-cta {
+  display: block;
+  text-align: center;
+  padding: 14px 18px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+  background: #111;
+  border-radius: 999px;
+  transition: background 0.2s ease, transform 0.15s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.blog-nl-cta:hover {
+  background: #333;
+}
+
+.blog-nl-cta:active {
+  transform: scale(0.99);
+}
+
+.blog-nl-later {
+  padding: 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #666;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.blog-nl-later:hover {
+  color: #111;
+}
+
+.blog-nl-popup-enter-active,
+.blog-nl-popup-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.blog-nl-popup-enter-active .blog-nl-modal,
+.blog-nl-popup-leave-active .blog-nl-modal {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.blog-nl-popup-enter-from,
+.blog-nl-popup-leave-to {
+  opacity: 0;
+}
+
+.blog-nl-popup-enter-from .blog-nl-modal,
+.blog-nl-popup-leave-to .blog-nl-modal {
+  transform: scale(0.96) translateY(8px);
+  opacity: 0.9;
 }
 </style>

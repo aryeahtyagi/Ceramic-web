@@ -1,3 +1,5 @@
+import { clearBlogNewsletterDismissFlag } from '~/utils/blogNewsletterStorage'
+
 export type User = {
   id: number
   username: string
@@ -135,6 +137,8 @@ export function useAuth() {
       } catch {
         // ignore storage errors
       }
+      // So blog newsletter popup can show again after logging out as a guest
+      clearBlogNewsletterDismissFlag()
     }
   }
 
