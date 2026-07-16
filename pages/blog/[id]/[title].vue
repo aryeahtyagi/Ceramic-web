@@ -132,7 +132,7 @@
       </section>
     </div>
 
-    <!-- Newsletter / login prompt (client-only, 12s after article loads) -->
+    <!-- Newsletter / login prompt (client-only, 5s after article loads) -->
     <Teleport to="body">
       <Transition name="blog-nl-popup">
         <div
@@ -253,9 +253,9 @@ const carouselRef = ref(null)
 const featuredImageRef = ref(null)
 const featuredImageWrapRef = ref(null)
 
-/** Newsletter popup — 12s after successful load; login CTA for guests */
+/** Newsletter popup — 5s after successful load; login CTA for guests */
 const showNewsletterPopup = ref(false)
-const NEWSLETTER_DELAY_MS = 12_000
+const NEWSLETTER_DELAY_MS = 5_000
 let newsletterTimerId = null
 
 const loginSubscribeUrl = computed(() => {
