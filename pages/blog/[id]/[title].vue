@@ -66,21 +66,36 @@
 
           <!-- Always-available newsletter CTA — same modal as timed popup (guests) -->
           <div class="blog-inline-newsletter">
-            <p class="blog-inline-newsletter-label">Enjoyed this article?</p>
-            <button
-              type="button"
-              class="blog-inline-newsletter-btn"
-              :disabled="isAuthenticated"
-              @click="handleNewsletterSubscribeClick"
-            >
-              Subscribe to newsletter
-            </button>
-            <p v-if="!isAuthenticated" class="blog-inline-newsletter-hint">
-              Log in to get updates and more posts like this.
-            </p>
-            <p v-else class="blog-inline-newsletter-hint blog-inline-newsletter-hint--signed-in">
-              You’re signed in — we’ll use your account for updates and new posts.
-            </p>
+            <div class="blog-inline-newsletter-media">
+              <img
+                class="blog-inline-newsletter-mug"
+                src="https://api.svrve.com/image/67"
+                alt="Free ceramic mug gift"
+                width="180"
+                height="180"
+                loading="lazy"
+              />
+            </div>
+            <div class="blog-inline-newsletter-copy">
+              <p class="blog-inline-newsletter-eyebrow">Free gift with signup</p>
+              <p class="blog-inline-newsletter-label">
+                Sign up &amp; get beautiful ceramic mugs — absolutely free
+              </p>
+              <p v-if="!isAuthenticated" class="blog-inline-newsletter-hint">
+                Create an account to claim your complimentary mug and get new posts &amp; offers.
+              </p>
+              <p v-else class="blog-inline-newsletter-hint blog-inline-newsletter-hint--signed-in">
+                You’re signed in — check your account for gift eligibility and updates.
+              </p>
+              <button
+                type="button"
+                class="blog-inline-newsletter-btn"
+                :disabled="isAuthenticated"
+                @click="handleNewsletterSubscribeClick"
+              >
+                {{ isAuthenticated ? "You're signed up" : 'Sign up & claim free mug' }}
+              </button>
+            </div>
           </div>
 
           <!-- Updated / Last modified (bottom, before related products) -->
@@ -137,9 +152,22 @@
             >
               ×
             </button>
-            <h2 id="blog-nl-title" class="blog-nl-title">Subscribe to our newsletter</h2>
+            <div class="blog-nl-media">
+              <img
+                class="blog-nl-mug"
+                src="https://api.svrve.com/image/67"
+                alt="Free ceramic mug gift"
+                width="200"
+                height="200"
+                loading="lazy"
+              />
+            </div>
+            <p class="blog-nl-eyebrow">Complimentary gift</p>
+            <h2 id="blog-nl-title" class="blog-nl-title">
+              Sign up &amp; get beautiful ceramic mugs — absolutely free
+            </h2>
             <p class="blog-nl-text">
-              Log in to get updates and receive more amazing blogs like this one — straight to you.
+              Create an account to claim your free mug and get new blogs, drops, and offers.
             </p>
             <div class="blog-nl-actions">
               <NuxtLink
@@ -147,7 +175,7 @@
                 :to="loginSubscribeUrl"
                 @click="dismissNewsletterPopup"
               >
-                Log in &amp; subscribe
+                Sign up &amp; claim free mug
               </NuxtLink>
               <button type="button" class="blog-nl-later" @click="dismissNewsletterPopup">
                 Maybe later
@@ -855,19 +883,59 @@ const formatPrice = (price) => {
 
 /* Inline newsletter CTA (below article body; guests only) */
 .blog-inline-newsletter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
   margin: 2rem 0 0;
-  padding: 1.25rem 1.125rem;
-  background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
+  padding: 1.25rem 1.125rem 1.5rem;
+  background: linear-gradient(180deg, #faf8f6 0%, #fff 55%, #f7f5f2 100%);
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 12px;
   text-align: center;
 }
 
+.blog-inline-newsletter-media {
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #ebe6df;
+  box-shadow: 0 8px 24px rgba(60, 40, 20, 0.12);
+}
+
+.blog-inline-newsletter-mug {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.blog-inline-newsletter-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.blog-inline-newsletter-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a6a4a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
 .blog-inline-newsletter-label {
-  margin: 0 0 0.75rem;
-  font-size: 0.9375rem;
-  font-weight: 600;
+  margin: 0 0 0.5rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.3;
   color: #111;
+  letter-spacing: -0.02em;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
@@ -876,7 +944,8 @@ const formatPrice = (price) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.65rem 1.5rem;
+  margin-top: 0.85rem;
+  padding: 0.7rem 1.35rem;
   font-size: 0.9375rem;
   font-weight: 600;
   color: #fff;
@@ -903,7 +972,8 @@ const formatPrice = (price) => {
 }
 
 .blog-inline-newsletter-hint {
-  margin: 0.75rem 0 0;
+  margin: 0;
+  max-width: 28rem;
   font-size: 0.8125rem;
   line-height: 1.45;
   color: #666;
@@ -1301,6 +1371,7 @@ const formatPrice = (price) => {
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+  text-align: center;
 }
 
 .blog-nl-close {
@@ -1317,6 +1388,7 @@ const formatPrice = (price) => {
   cursor: pointer;
   border-radius: 8px;
   transition: background 0.15s ease, color 0.15s ease;
+  z-index: 1;
 }
 
 .blog-nl-close:hover {
@@ -1324,14 +1396,42 @@ const formatPrice = (price) => {
   color: #111;
 }
 
+.blog-nl-media {
+  width: 148px;
+  height: 148px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #ebe6df;
+  box-shadow: 0 10px 28px rgba(60, 40, 20, 0.14);
+}
+
+.blog-nl-mug {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.blog-nl-eyebrow {
+  margin: 0 0 0.4rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a6a4a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
 .blog-nl-title {
-  margin: 0 32px 12px 0;
-  font-size: 1.25rem;
+  margin: 0 0 12px;
+  padding: 0 8px;
+  font-size: 1.2rem;
   font-weight: 700;
   color: #111;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   letter-spacing: -0.02em;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 .blog-nl-text {
@@ -1520,17 +1620,36 @@ const formatPrice = (price) => {
   }
 
   .blog-inline-newsletter {
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    gap: 1.75rem;
     margin: 2.5rem auto 0;
     max-width: 100%;
-    padding: 1.75rem 2rem;
+    padding: 1.5rem 1.75rem;
     border-radius: 14px;
     border: 1px solid rgba(0, 0, 0, 0.08);
-    background: linear-gradient(145deg, #fafafa 0%, #f3f3f3 50%, #fafafa 100%);
+    background: linear-gradient(145deg, #faf8f6 0%, #f3f0eb 50%, #faf8f6 100%);
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   }
 
+  .blog-inline-newsletter-media {
+    width: 168px;
+    height: 168px;
+  }
+
+  .blog-inline-newsletter-copy {
+    align-items: flex-start;
+    flex: 1;
+    min-width: 0;
+  }
+
   .blog-inline-newsletter-label {
-    font-size: 1.0625rem;
+    font-size: 1.25rem;
+  }
+
+  .blog-inline-newsletter-hint {
+    max-width: none;
   }
 
   .article-updated {
