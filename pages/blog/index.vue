@@ -116,7 +116,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 // Force SSR so blog list is in initial HTML for SEO
 definePageMeta({ ssr: true })
@@ -124,6 +124,11 @@ definePageMeta({ ssr: true })
 const route = useRoute()
 const router = useRouter()
 const cart = useCart()
+const { track } = useTracking()
+
+onMounted(() => {
+  track('page_view')
+})
 const config = useRuntimeConfig()
 const apiBase = String(config.public.apiBase || '').replace(/\/$/, '')
 const siteUrl = String(config.public.siteUrl || 'https://svrve.com').replace(/\/$/, '')

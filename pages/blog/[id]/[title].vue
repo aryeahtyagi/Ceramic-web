@@ -141,14 +141,14 @@
           role="dialog"
           aria-modal="true"
           aria-labelledby="blog-nl-title"
-          @click.self="dismissNewsletterPopup"
+          @click.self="dismissNewsletterPopup('overlay_click')"
         >
           <div class="blog-nl-modal">
             <button
               type="button"
               class="blog-nl-close"
               aria-label="Close"
-              @click="dismissNewsletterPopup"
+              @click="dismissNewsletterPopup('close_button')"
             >
               ×
             </button>
@@ -173,11 +173,11 @@
               <NuxtLink
                 class="blog-nl-cta"
                 :to="loginSubscribeUrl"
-                @click="dismissNewsletterPopup"
+                @click="handlePopupCtaClick"
               >
                 Sign up &amp; claim free mug
               </NuxtLink>
-              <button type="button" class="blog-nl-later" @click="dismissNewsletterPopup">
+              <button type="button" class="blog-nl-later" @click="dismissNewsletterPopup('maybe_later')">
                 Maybe later
               </button>
             </div>
@@ -195,6 +195,7 @@ import { BLOG_NEWSLETTER_DISMISS_KEY } from '~/utils/blogNewsletterStorage.js'
 const route = useRoute()
 /** Top-level ref so template unwraps correctly (nested auth.isAuthenticated does NOT unwrap in templates) */
 const { isAuthenticated } = useAuth()
+const { track } = useTracking()
 const config = useRuntimeConfig()
 const apiBase = String(config.public.apiBase || '').replace(/\/$/, '')
 const siteUrl = String(config.public.siteUrl || 'https://svrve.com').replace(/\/$/, '')
@@ -253,6 +254,43 @@ const carouselRef = ref(null)
 const featuredImageRef = ref(null)
 const featuredImageWrapRef = ref(null)
 
+/**
+ * Time-on-page — proxy for content quality per post. Sent once per post view, on whichever
+ * comes first: tab hidden, page unload, or navigating to a different post (route reuses this
+ * component instance rather than remounting it, so we key off blog.value.id, not onMounted).
+ */
+let pageEnteredAt = null
+let timeOnPageSent = false
+
+function startTimeTracking() {
+  pageEnteredAt = Date.now()
+  timeOnPageSent = false
+}
+
+function sendTimeOnPage(reason) {
+  if (timeOnPageSent || !pageEnteredAt || !import.meta.client) return
+  timeOnPageSent = true
+  const seconds = Math.max(0, Math.round((Date.now() - pageEnteredAt) / 1000))
+  track('blog_time_on_page', { blogId: blog.value?.id ?? blogId, seconds, reason }, { beacon: true })
+}
+
+function handleTimeTrackingVisibilityChange() {
+  if (document.visibilityState === 'hidden') sendTimeOnPage('hidden')
+}
+
+function handleTimeTrackingPageHide() {
+  sendTimeOnPage('pagehide')
+}
+
+watch(
+  () => blog.value?.id,
+  (newId, oldId) => {
+    if (oldId) sendTimeOnPage('navigated')
+    if (newId) startTimeTracking()
+  },
+  { immediate: true }
+)
+
 /** Newsletter popup — 5s after successful load; login CTA for guests */
 const showNewsletterPopup = ref(false)
 const NEWSLETTER_DELAY_MS = 5_000
@@ -260,8 +298,17 @@ let newsletterTimerId = null
 
 const loginSubscribeUrl = computed(() => {
   const path = route.fullPath || '/blog'
-  return `/login?redirect=${encodeURIComponent(path)}`
+  return `/login?redirect=${encodeURIComponent(path)}&source=blog_popup`
 })
+
+function trackPopupShown() {
+  track('popup_shown', { blogId: blog.value?.id ?? blogId }, { immediate: true })
+}
+
+function handlePopupCtaClick() {
+  track('popup_cta_click', { blogId: blog.value?.id ?? blogId }, { immediate: true })
+  closePopupUi()
+}
 
 function clearNewsletterTimer() {
   if (newsletterTimerId != null && typeof window !== 'undefined') {
@@ -270,7 +317,8 @@ function clearNewsletterTimer() {
   }
 }
 
-function dismissNewsletterPopup() {
+/** Closes the modal + persists the session "don't show again" flag, without any dismissal tracking. */
+function closePopupUi() {
   showNewsletterPopup.value = false
   if (import.meta.client) {
     try {
@@ -282,16 +330,27 @@ function dismissNewsletterPopup() {
   }
 }
 
+/** User actively backed out of the popup (not via the CTA) — method distinguishes "Maybe later" vs the X vs clicking outside. */
+function dismissNewsletterPopup(method = 'unknown') {
+  const wasOpen = showNewsletterPopup.value
+  closePopupUi()
+  if (wasOpen && import.meta.client) {
+    track('popup_dismissed', { blogId: blog.value?.id ?? blogId, method }, { immediate: true })
+  }
+}
+
 /** Open the same subscribe modal from the inline page button (ignores “dismissed” session flag) */
 function openNewsletterSubscribeFromPage() {
   if (!import.meta.client) return
   if (isAuthenticated.value) return
   showNewsletterPopup.value = true
+  trackPopupShown()
   document.body.style.overflow = 'hidden'
 }
 
 function handleNewsletterSubscribeClick() {
   if (isAuthenticated.value) return
+  track('inline_cta_click', { blogId: blog.value?.id ?? blogId }, { immediate: true })
   openNewsletterSubscribeFromPage()
 }
 
@@ -315,6 +374,7 @@ function scheduleNewsletterPopup() {
     newsletterTimerId = null
     if (!canShowNewsletterPopup()) return
     showNewsletterPopup.value = true
+    trackPopupShown()
   }, NEWSLETTER_DELAY_MS)
 }
 
@@ -327,9 +387,14 @@ function resetAndScheduleNewsletterPopup() {
 }
 
 onMounted(() => {
+  if (blog.value && !error.value) {
+    track('blog_view', { blogId: blog.value?.id ?? blogId, title: blog.value?.title })
+  }
   nextTick(() => {
     resetAndScheduleNewsletterPopup()
   })
+  document.addEventListener('visibilitychange', handleTimeTrackingVisibilityChange)
+  window.addEventListener('pagehide', handleTimeTrackingPageHide)
 })
 
 watch(
@@ -347,7 +412,10 @@ watch(showNewsletterPopup, (open) => {
 
 onUnmounted(() => {
   clearNewsletterTimer()
+  sendTimeOnPage('unmount')
   if (import.meta.client) {
+    document.removeEventListener('visibilitychange', handleTimeTrackingVisibilityChange)
+    window.removeEventListener('pagehide', handleTimeTrackingPageHide)
     document.body.style.overflow = ''
   }
 })

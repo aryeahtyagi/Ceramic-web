@@ -44,7 +44,7 @@ export function useAuth() {
   const config = useRuntimeConfig()
   const apiBase = String(config.public.apiBase || '').replace(/\/$/, '')
 
-  const login = async (phoneNumber: string): Promise<User | null> => {
+  const login = async (phoneNumber: string, source?: string): Promise<User | null> => {
     if (!phoneNumber || !phoneNumber.trim()) {
       throw new Error('Phone number is required')
     }
@@ -64,6 +64,7 @@ export function useAuth() {
           } catch {
             // ignore storage errors
           }
+          useTracking().track('login_success', { source: source || null }, { immediate: true })
         }
         return response
       }
@@ -78,13 +79,16 @@ export function useAuth() {
     }
   }
 
-  const signup = async (data: {
-    username: string
-    phoneNumber: string
-    email: string
-    address: string
-    pincode: string
-  }): Promise<User> => {
+  const signup = async (
+    data: {
+      username: string
+      phoneNumber: string
+      email: string
+      address: string
+      pincode: string
+    },
+    source?: string
+  ): Promise<User> => {
     if (!data.phoneNumber || !data.phoneNumber.trim()) {
       throw new Error('Phone number is required')
     }
@@ -119,6 +123,7 @@ export function useAuth() {
           } catch {
             // ignore storage errors
           }
+          useTracking().track('signup_success', { source: source || null }, { immediate: true })
         }
         return response
       }

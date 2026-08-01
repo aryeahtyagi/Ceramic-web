@@ -183,6 +183,12 @@ const toggleMode = () => {
   }
 }
 
+// Attribute the signup/login to whatever sent the visitor here (e.g. the blog newsletter popup)
+const source = computed(() => {
+  const s = route.query.source
+  return s && typeof s === 'string' ? s : undefined
+})
+
 const handleSubmit = async () => {
   error.value = ''
   loading.value = true
@@ -195,9 +201,9 @@ const handleSubmit = async () => {
         email: form.value.email,
         address: form.value.address,
         pincode: form.value.pincode
-      })
+      }, source.value)
     } else {
-      const user = await auth.login(form.value.phoneNumber)
+      const user = await auth.login(form.value.phoneNumber, source.value)
       if (!user) {
         error.value = 'No account found with this phone number. Please sign up.'
         isSignup.value = true
