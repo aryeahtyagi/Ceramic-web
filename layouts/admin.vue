@@ -25,6 +25,8 @@
           <span class="admin-brand">SVRVE Admin</span>
           <nav class="admin-nav">
             <NuxtLink to="/admin/products" class="admin-nav-link">Products</NuxtLink>
+            <NuxtLink to="/admin/users" class="admin-nav-link">Users</NuxtLink>
+            <NuxtLink to="/admin/designs" class="admin-nav-link">Designs</NuxtLink>
             <NuxtLink to="/admin/blog" class="admin-nav-link">Blog</NuxtLink>
             <NuxtLink to="/admin/analytics" class="admin-nav-link">Analytics</NuxtLink>
           </nav>

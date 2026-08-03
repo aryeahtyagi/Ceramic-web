@@ -1,24 +1,42 @@
 <template>
   <div class="login-page">
-    <div class="login-background">
-      <div class="login-background-pattern"></div>
+    <!-- Visual side -->
+    <div class="login-visual">
+      <NuxtLink to="/" class="visual-brand">
+        <span class="brand-text">SVRVE</span>
+        <span class="brand-dot">•</span>
+      </NuxtLink>
+
+      <div class="visual-center">
+        <div class="visual-plate">
+          <div class="visual-plate-rim"></div>
+          <div class="visual-plate-glyph">S</div>
+        </div>
+        <div class="visual-orbit orbit-a"></div>
+        <div class="visual-orbit orbit-b"></div>
+      </div>
+
+      <div class="visual-copy">
+        <p class="visual-eyebrow">Designed to impress, made to use</p>
+        <h2 class="visual-heading">Handcrafted ceramics,<br />made personal.</h2>
+        <p class="visual-sub">Join a community of collectors who bring a little more craft to their table.</p>
+      </div>
     </div>
-    
-    <div class="login-wrapper">
-      <div class="login-container">
-        <div class="login-header">
-          <div class="login-icon">
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <h1 class="login-title">{{ isSignup ? 'Create Account' : 'Welcome Back' }}</h1>
-          <p class="login-subtitle">
-            {{ isSignup ? 'Join us to discover handcrafted ceramics' : 'Enter your phone number to continue shopping' }}
+
+    <!-- Form side -->
+    <div class="login-form-side">
+      <div class="login-form-wrap">
+        <div class="form-header">
+          <h1 class="form-title">{{ isSignup ? 'Create Your Account' : 'Welcome Back' }}</h1>
+          <p class="form-subtitle">
+            {{ isSignup ? 'Join us to discover handcrafted ceramics' : 'Log in to continue shopping' }}
           </p>
         </div>
+
+        <div ref="googleButtonRef" class="google-btn-container"></div>
+        <p v-if="googleError" class="google-error">{{ googleError }}</p>
+
+        <div class="divider"><span>or continue with phone</span></div>
 
         <form @submit.prevent="handleSubmit" class="login-form">
           <div class="form-group">
@@ -77,35 +95,37 @@
               />
             </div>
 
-            <div class="form-group">
-              <label for="address" class="form-label">
-                <span class="label-text">Address</span>
-              </label>
-              <input
-                id="address"
-                v-model="form.address"
-                type="text"
-                class="form-input"
-                placeholder="Enter your address"
-                :disabled="loading"
-                autocomplete="street-address"
-              />
-            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="address" class="form-label">
+                  <span class="label-text">Address</span>
+                </label>
+                <input
+                  id="address"
+                  v-model="form.address"
+                  type="text"
+                  class="form-input"
+                  placeholder="Address"
+                  :disabled="loading"
+                  autocomplete="street-address"
+                />
+              </div>
 
-            <div class="form-group">
-              <label for="pincode" class="form-label">
-                <span class="label-text">Pincode</span>
-              </label>
-              <input
-                id="pincode"
-                v-model="form.pincode"
-                type="text"
-                class="form-input"
-                placeholder="Enter your pincode"
-                :disabled="loading"
-                autocomplete="postal-code"
-                maxlength="6"
-              />
+              <div class="form-group">
+                <label for="pincode" class="form-label">
+                  <span class="label-text">Pincode</span>
+                </label>
+                <input
+                  id="pincode"
+                  v-model="form.pincode"
+                  type="text"
+                  class="form-input"
+                  placeholder="Pincode"
+                  :disabled="loading"
+                  autocomplete="postal-code"
+                  maxlength="6"
+                />
+              </div>
             </div>
           </template>
 
@@ -128,13 +148,10 @@
         </form>
 
         <div class="toggle-mode">
-          <div class="toggle-divider">
-            <span></span>
-          </div>
           <button type="button" class="toggle-btn" @click="toggleMode" :disabled="loading">
             <span v-if="isSignup">Already have an account?</span>
             <span v-else>Don't have an account?</span>
-            <strong>{{ isSignup ? 'Login' : 'Sign up' }}</strong>
+            <strong>{{ isSignup ? 'Log In' : 'Sign Up' }}</strong>
           </button>
         </div>
       </div>
@@ -143,7 +160,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 definePageMeta({
   layout: false
@@ -152,6 +169,7 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 const auth = useAuth()
+const config = useRuntimeConfig()
 
 const isSignup = ref(false)
 const loading = ref(false)
@@ -221,6 +239,74 @@ const handleSubmit = async () => {
   }
 }
 
+// --- Google Sign-In ---
+const googleButtonRef = ref(null)
+const googleError = ref('')
+
+function loadGoogleScript() {
+  return new Promise((resolve, reject) => {
+    if (window.google?.accounts?.id) {
+      resolve()
+      return
+    }
+    const existing = document.querySelector('script[data-google-gsi]')
+    if (existing) {
+      existing.addEventListener('load', () => resolve())
+      existing.addEventListener('error', () => reject(new Error('Failed to load Google script')))
+      return
+    }
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.defer = true
+    script.dataset.googleGsi = 'true'
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Failed to load Google script'))
+    document.head.appendChild(script)
+  })
+}
+
+async function handleGoogleCredential(response) {
+  error.value = ''
+  loading.value = true
+  try {
+    await auth.loginWithGoogle(response.credential, source.value)
+    await router.push(redirectTo.value)
+  } catch (err) {
+    error.value = err?.message || err?.data?.message || 'Google sign-in failed. Please try again.'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(async () => {
+  const clientId = config.public.googleClientId
+  if (!clientId) return
+
+  try {
+    await loadGoogleScript()
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleGoogleCredential
+    })
+    if (googleButtonRef.value) {
+      // GIS button width is a fixed pixel value (no %), so measure the actual
+      // container instead of hardcoding one — otherwise it overflows on narrow screens.
+      const width = googleButtonRef.value.clientWidth || 360
+      window.google.accounts.id.renderButton(googleButtonRef.value, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        shape: 'rectangular',
+        text: 'continue_with',
+        width
+      })
+    }
+  } catch {
+    googleError.value = 'Could not load Google Sign-In right now.'
+  }
+})
+
 // If already logged in, redirect
 if (auth.isAuthenticated.value) {
   await router.push(redirectTo.value)
@@ -228,139 +314,255 @@ if (auth.isAuthenticated.value) {
 </script>
 
 <style scoped>
+* {
+  box-sizing: border-box;
+}
+
 .login-page {
   min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  background: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ---------- Visual side ---------- */
+.login-visual {
   position: relative;
+  background: linear-gradient(135deg, #2c2c2c 0%, #1a1a1a 100%);
+  color: #fff;
+  padding: 32px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
+  flex-direction: column;
+  justify-content: space-between;
   overflow: hidden;
 }
 
-.login-background {
-  position: fixed;
-  inset: 0;
-  background: linear-gradient(135deg, #f5f1eb 0%, #e8ddd4 50%, #f5f1eb 100%);
-  z-index: 0;
+.visual-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  color: #fff;
+  font-weight: 600;
+  font-size: 1.125rem;
+  letter-spacing: 0.05em;
+  align-self: flex-start;
+  z-index: 2;
 }
 
-.login-background-pattern {
-  position: absolute;
-  inset: 0;
-  background-image: 
-    radial-gradient(circle at 20% 30%, rgba(139, 69, 19, 0.03) 0%, transparent 50%),
-    radial-gradient(circle at 80% 70%, rgba(210, 105, 30, 0.03) 0%, transparent 50%),
-    radial-gradient(circle at 50% 50%, rgba(244, 164, 96, 0.02) 0%, transparent 50%);
-  background-size: 100% 100%;
-  animation: patternMove 20s ease-in-out infinite;
+.brand-dot {
+  font-size: 0.75rem;
+  opacity: 0.8;
 }
 
-@keyframes patternMove {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-2%, -2%) scale(1.05); }
-}
-
-.login-wrapper {
+.visual-center {
   position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 440px;
-}
-
-.login-container {
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(10px);
-  border-radius: 24px;
-  padding: 2.5rem;
-  box-shadow: 
-    0 20px 60px rgba(0, 0, 0, 0.1),
-    0 0 0 1px rgba(0, 0, 0, 0.05);
-  animation: slideUp 0.4s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.login-header {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-.login-icon {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 1.25rem;
-  color: var(--primary-color, #8B4513);
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(139, 69, 19, 0.1) 0%, rgba(210, 105, 30, 0.1) 100%);
-  border-radius: 16px;
-  animation: iconFloat 3s ease-in-out infinite;
+  min-height: 220px;
 }
 
-@keyframes iconFloat {
+.visual-plate {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff 0%, #f2ede6 55%, #ddd5c9 78%, #c9beae 100%);
+  box-shadow:
+    0 -6px 14px rgba(0, 0, 0, 0.12) inset,
+    0 24px 50px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: plateFloat 6s ease-in-out infinite;
+  z-index: 2;
+}
+
+.visual-plate-rim {
+  position: absolute;
+  inset: 14%;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+}
+
+.visual-plate-glyph {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 2.5rem;
+  color: #2c2c2c;
+  opacity: 0.7;
+}
+
+.visual-orbit {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+}
+
+.orbit-a {
+  width: 280px;
+  height: 280px;
+  animation: orbitSpin 40s linear infinite;
+}
+
+.orbit-b {
+  width: 340px;
+  height: 340px;
+  animation: orbitSpin 60s linear infinite reverse;
+}
+
+@keyframes plateFloat {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
+  50% { transform: translateY(-10px); }
 }
 
-.login-icon svg {
-  width: 32px;
-  height: 32px;
+@keyframes orbitSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-.login-title {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--text-dark, #2c3e50);
-  margin: 0 0 0.5rem;
-  letter-spacing: -0.02em;
+.visual-copy {
+  position: relative;
+  z-index: 2;
 }
 
-.login-subtitle {
+.visual-eyebrow {
+  margin: 0 0 10px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-style: italic;
   font-size: 0.9375rem;
-  color: var(--text-muted, #3f4f5f);
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.03em;
+}
+
+.visual-heading {
+  margin: 0 0 12px;
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.visual-sub {
   margin: 0;
-  line-height: 1.5;
+  max-width: 380px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+/* ---------- Form side ---------- */
+.login-form-side {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+}
+
+.login-form-wrap {
+  width: 100%;
+  max-width: 400px;
+}
+
+.form-header {
+  margin-bottom: 28px;
+}
+
+.form-title {
+  margin: 0 0 8px;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #2c2c2c;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.form-subtitle {
+  margin: 0;
+  color: #666;
+  font-size: 0.9375rem;
+}
+
+.google-btn-container {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.google-error {
+  margin: 8px 0 0;
+  color: #b3261e;
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.divider {
+  position: relative;
+  text-align: center;
+  margin: 24px 0;
+}
+
+.divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.divider span {
+  position: relative;
+  background: #fff;
+  padding: 0 14px;
+  font-size: 0.75rem;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 18px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.form-row .form-group {
+  margin: 0;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
+  gap: 8px;
 }
 
 .form-label {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-dark, #2c3e50);
-}
-
-.label-text {
-  letter-spacing: 0.01em;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #2c2c2c;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .required {
-  color: #dc2626;
-  font-weight: 700;
+  color: #b3261e;
 }
 
 .input-wrapper {
@@ -371,118 +573,87 @@ if (auth.isAuthenticated.value) {
 
 .input-prefix {
   position: absolute;
-  left: 1rem;
+  left: 14px;
   font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--text-muted, #3f4f5f);
+  color: #666;
   pointer-events: none;
-  z-index: 1;
 }
 
 .form-input {
   width: 100%;
-  padding: 0.875rem 1rem;
-  font-size: 1rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  background: #ffffff;
-  color: var(--text-dark, #2c3e50);
-  transition: all 0.2s ease;
+  padding: 12px 14px;
+  font-size: 0.9375rem;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 0;
+  background: #fff;
+  color: #2c2c2c;
+  transition: border-color 0.2s;
   font-family: inherit;
 }
 
 .input-wrapper .form-input {
-  padding-left: 3.5rem;
+  padding-left: 42px;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: var(--primary-color, #8B4513);
-  box-shadow: 0 0 0 4px rgba(139, 69, 19, 0.1);
-  background: #ffffff;
+  border-color: #2c2c2c;
 }
 
 .form-input:disabled {
-  background: #f9fafb;
-  border-color: #e5e7eb;
+  background: #fafafa;
   cursor: not-allowed;
   opacity: 0.7;
 }
 
 .form-input::placeholder {
-  color: #9ca3af;
+  color: #999;
 }
 
 .error-message {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.875rem 1rem;
-  background: #fef2f2;
-  border: 2px solid #fecaca;
-  border-radius: 12px;
-  color: #dc2626;
-  font-size: 0.875rem;
-  font-weight: 500;
-  animation: shake 0.3s ease;
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fdf1f0;
+  border: 1px solid #f2c9c5;
+  color: #b3261e;
+  font-size: 0.8125rem;
 }
 
 .error-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 }
 
 .submit-btn {
   width: 100%;
-  padding: 1rem 1.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  color: white;
-  background: linear-gradient(135deg, var(--primary-color, #8B4513) 0%, var(--secondary-color, #D2691E) 100%);
-  border: none;
-  border-radius: 12px;
+  padding: 14px 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #fff;
+  background: #2c2c2c;
+  border: 1px solid #2c2c2c;
+  border-radius: 0;
   cursor: pointer;
-  transition: all 0.2s ease;
-  margin-top: 0.5rem;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(139, 69, 19, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: background 0.2s;
+  margin-top: 4px;
 }
 
-.submit-btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, var(--secondary-color, #D2691E) 0%, var(--primary-color, #8B4513) 100%);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.submit-btn:hover:not(:disabled)::before {
-  opacity: 1;
-}
-
-.submit-btn:active:not(:disabled) {
-  transform: translateY(1px);
-  box-shadow: 0 2px 8px rgba(139, 69, 19, 0.3);
+.submit-btn:hover:not(:disabled) {
+  background: #000;
 }
 
 .submit-btn:disabled {
-  opacity: 0.7;
+  background: #ccc;
+  border-color: #ccc;
   cursor: not-allowed;
-  transform: none;
 }
 
 .submit-btn span {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -490,9 +661,8 @@ if (auth.isAuthenticated.value) {
 }
 
 .loading-spinner {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   animation: spin 0.8s linear infinite;
 }
 
@@ -507,50 +677,27 @@ if (auth.isAuthenticated.value) {
 }
 
 .toggle-mode {
-  margin-top: 2rem;
-}
-
-.toggle-divider {
-  position: relative;
-  margin-bottom: 1.5rem;
+  margin-top: 24px;
   text-align: center;
 }
 
-.toggle-divider::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: #e5e7eb;
-}
-
 .toggle-btn {
-  width: 100%;
   background: none;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 0.875rem 1rem;
-  font-size: 0.9375rem;
-  color: var(--text-dark, #2c3e50);
+  border: none;
+  padding: 0;
+  font-size: 0.875rem;
+  color: #666;
   cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
+  gap: 6px;
   font-family: inherit;
 }
 
 .toggle-btn strong {
-  color: var(--primary-color, #8B4513);
+  color: #2c2c2c;
+  text-decoration: underline;
   font-weight: 600;
-}
-
-.toggle-btn:hover:not(:disabled) {
-  border-color: var(--primary-color, #8B4513);
-  background: rgba(139, 69, 19, 0.02);
 }
 
 .toggle-btn:disabled {
@@ -558,36 +705,59 @@ if (auth.isAuthenticated.value) {
   cursor: not-allowed;
 }
 
+@media (max-width: 900px) {
+  .login-page {
+    grid-template-columns: 1fr;
+  }
+
+  .login-visual {
+    padding: 24px;
+    min-height: 260px;
+  }
+
+  .visual-center {
+    min-height: 140px;
+  }
+
+  .visual-plate {
+    width: 120px;
+    height: 120px;
+  }
+
+  .visual-plate-glyph {
+    font-size: 1.5rem;
+  }
+
+  .orbit-a {
+    width: 180px;
+    height: 180px;
+  }
+
+  .orbit-b {
+    width: 220px;
+    height: 220px;
+  }
+
+  .visual-heading {
+    font-size: 1.5rem;
+  }
+
+  .visual-sub {
+    display: none;
+  }
+
+  .login-form-side {
+    padding: 32px 20px 48px;
+  }
+}
+
 @media (max-width: 480px) {
-  .login-container {
-    padding: 2rem 1.5rem;
-    border-radius: 20px;
+  .form-row {
+    grid-template-columns: 1fr;
   }
 
-  .login-title {
-    font-size: 1.75rem;
-  }
-
-  .login-icon {
-    width: 56px;
-    height: 56px;
-  }
-
-  .login-icon svg {
-    width: 28px;
-    height: 28px;
-  }
-
-  .input-wrapper .form-input {
-    padding-left: 3.25rem;
-  }
-  
-  .form-input {
-    padding: 0.75rem 0.875rem;
-  }
-
-  .submit-btn {
-    padding: 0.875rem 1.25rem;
+  .form-title {
+    font-size: 1.5rem;
   }
 }
 </style>

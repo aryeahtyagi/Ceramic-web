@@ -134,6 +134,34 @@ export function useAuth() {
     }
   }
 
+  const loginWithGoogle = async (idToken: string, source?: string): Promise<User> => {
+    if (!idToken) {
+      throw new Error('Missing Google credential')
+    }
+
+    const params = new URLSearchParams({ idToken })
+    const url = `${apiBase}/user/google-login?${params.toString()}`
+    const response = await $fetch<User>(url, {
+      method: 'POST',
+      headers: { accept: '*/*' }
+    })
+
+    if (!response || !response.id) {
+      throw new Error('Google sign-in failed. Please try again.')
+    }
+
+    user.value = response
+    if (process.client) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(response))
+      } catch {
+        // ignore storage errors
+      }
+      useTracking().track('google_login_success', { source: source || null }, { immediate: true })
+    }
+    return response
+  }
+
   const logout = () => {
     user.value = null
     if (process.client) {
@@ -152,6 +180,7 @@ export function useAuth() {
     isAuthenticated,
     login,
     signup,
+    loginWithGoogle,
     logout
   }
 }

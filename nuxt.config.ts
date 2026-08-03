@@ -21,7 +21,8 @@ export default defineNuxtConfig({
         (isNuxtDev ? 'http://localhost:9090' : 'https://api.svrve.com'),
       siteUrl:
         process.env.NUXT_PUBLIC_SITE_URL ||
-        (isNuxtDev ? 'http://localhost:3000' : 'https://svrve.com')
+        (isNuxtDev ? 'http://localhost:3000' : 'https://svrve.com'),
+      googleClientId: process.env.NUXT_PUBLIC_GOOGLE_CLIENT_ID || ''
     }
   },
 

@@ -27,6 +27,11 @@
           <span class="menu-label">Home</span>
         </NuxtLink>
 
+        <NuxtLink to="/design" class="menu-item" @click="closeMenu">
+          <span class="menu-icon">✏️</span>
+          <span class="menu-label">Design Your Own</span>
+        </NuxtLink>
+
         <div class="menu-section">
           <button
             class="menu-item menu-item-expandable"
