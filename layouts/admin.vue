@@ -27,7 +27,9 @@
             <NuxtLink to="/admin/products" class="admin-nav-link">Products</NuxtLink>
             <NuxtLink to="/admin/users" class="admin-nav-link">Users</NuxtLink>
             <NuxtLink to="/admin/designs" class="admin-nav-link">Designs</NuxtLink>
+            <NuxtLink to="/admin/seo" class="admin-nav-link">SEO</NuxtLink>
             <NuxtLink to="/admin/blog" class="admin-nav-link">Blog</NuxtLink>
+            <NuxtLink to="/admin/popups" class="admin-nav-link">Popups</NuxtLink>
             <NuxtLink to="/admin/analytics" class="admin-nav-link">Analytics</NuxtLink>
           </nav>
           <button type="button" class="logout-btn" @click="logout">Log out</button>

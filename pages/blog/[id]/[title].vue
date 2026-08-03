@@ -152,23 +152,7 @@
             >
               ×
             </button>
-            <div class="blog-nl-media">
-              <img
-                class="blog-nl-mug"
-                src="https://api.svrve.com/image/67"
-                alt="Free ceramic mug gift"
-                width="200"
-                height="200"
-                loading="lazy"
-              />
-            </div>
-            <p class="blog-nl-eyebrow">Complimentary gift</p>
-            <h2 id="blog-nl-title" class="blog-nl-title">
-              Sign up &amp; get beautiful ceramic mugs — absolutely free
-            </h2>
-            <p class="blog-nl-text">
-              Create an account to claim your free mug and get new blogs, drops, and offers.
-            </p>
+            <div id="blog-nl-title" class="blog-nl-custom-content" v-html="activePopupHtml"></div>
             <div class="blog-nl-actions">
               <NuxtLink
                 class="blog-nl-cta"
@@ -177,6 +161,8 @@
               >
                 Sign up &amp; claim free mug
               </NuxtLink>
+              <div v-if="activePopup?.showGoogleButton" ref="popupGoogleButtonRef" class="blog-nl-google-btn"></div>
+              <p v-if="popupGoogleError" class="blog-nl-google-error">{{ popupGoogleError }}</p>
               <button type="button" class="blog-nl-later" @click="dismissNewsletterPopup('maybe_later')">
                 Maybe later
               </button>
@@ -194,7 +180,7 @@ import { BLOG_NEWSLETTER_DISMISS_KEY } from '~/utils/blogNewsletterStorage.js'
 
 const route = useRoute()
 /** Top-level ref so template unwraps correctly (nested auth.isAuthenticated does NOT unwrap in templates) */
-const { isAuthenticated } = useAuth()
+const { isAuthenticated, loginWithGoogle } = useAuth()
 const { track } = useTracking()
 const config = useRuntimeConfig()
 const apiBase = String(config.public.apiBase || '').replace(/\/$/, '')
@@ -296,6 +282,54 @@ const showNewsletterPopup = ref(false)
 const NEWSLETTER_DELAY_MS = 5_000
 let newsletterTimerId = null
 
+// Admin-configured popup content (pages/admin/popups.vue) — falls back to this page's
+// original hardcoded pitch when nothing is set active yet.
+const DEFAULT_POPUP_HTML = `
+  <div class="blog-nl-media"><img class="blog-nl-mug" src="https://api.svrve.com/image/67" alt="Free ceramic mug gift" width="200" height="200" loading="lazy" /></div>
+  <p class="blog-nl-eyebrow">Complimentary gift</p>
+  <h2 class="blog-nl-title">Sign up &amp; get beautiful ceramic mugs — absolutely free</h2>
+  <p class="blog-nl-text">Create an account to claim your free mug and get new blogs, drops, and offers.</p>
+`
+const activePopup = ref(null)
+const activePopupHtml = computed(() => activePopup.value?.htmlContent || DEFAULT_POPUP_HTML)
+
+async function loadActivePopup() {
+  if (!import.meta.client) return
+  try {
+    activePopup.value = await $fetch(`${apiBase}/popups/active`)
+  } catch {
+    activePopup.value = null // fall back to default content
+  }
+}
+
+// --- Optional Google Sign-In button inside the popup ---
+const popupGoogleButtonRef = ref(null)
+const popupGoogleError = ref('')
+const { renderGoogleButton } = useGoogleSignIn()
+
+async function handlePopupGoogleCredential(response) {
+  popupGoogleError.value = ''
+  try {
+    await loginWithGoogle(response.credential, 'blog_popup')
+    track('popup_cta_click', { blogId: blog.value?.id ?? blogId, method: 'google' }, { immediate: true })
+    closePopupUi()
+  } catch {
+    popupGoogleError.value = 'Google sign-in failed. Please try again.'
+  }
+}
+
+async function mountPopupGoogleButton() {
+  if (!activePopup.value?.showGoogleButton) return
+  await nextTick()
+  const clientId = config.public.googleClientId
+  if (!clientId || !popupGoogleButtonRef.value) return
+  try {
+    await renderGoogleButton(popupGoogleButtonRef.value, clientId, handlePopupGoogleCredential)
+  } catch {
+    popupGoogleError.value = 'Could not load Google Sign-In.'
+  }
+}
+
 const loginSubscribeUrl = computed(() => {
   const path = route.fullPath || '/blog'
   return `/login?redirect=${encodeURIComponent(path)}&source=blog_popup`
@@ -390,6 +424,7 @@ onMounted(() => {
   if (blog.value && !error.value) {
     track('blog_view', { blogId: blog.value?.id ?? blogId, title: blog.value?.title })
   }
+  loadActivePopup()
   nextTick(() => {
     resetAndScheduleNewsletterPopup()
   })
@@ -408,6 +443,10 @@ watch(
 watch(showNewsletterPopup, (open) => {
   if (!import.meta.client) return
   document.body.style.overflow = open ? 'hidden' : ''
+  if (open) {
+    popupGoogleError.value = ''
+    mountPopupGoogleButton()
+  }
 })
 
 onUnmounted(() => {
@@ -1510,10 +1549,28 @@ const formatPrice = (price) => {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
+.blog-nl-custom-content :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
 .blog-nl-actions {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.blog-nl-google-btn {
+  display: flex;
+  justify-content: center;
+  min-height: 40px;
+}
+
+.blog-nl-google-error {
+  margin: 0;
+  color: #b3261e;
+  font-size: 0.8125rem;
+  text-align: center;
 }
 
 .blog-nl-cta {

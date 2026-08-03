@@ -242,29 +242,7 @@ const handleSubmit = async () => {
 // --- Google Sign-In ---
 const googleButtonRef = ref(null)
 const googleError = ref('')
-
-function loadGoogleScript() {
-  return new Promise((resolve, reject) => {
-    if (window.google?.accounts?.id) {
-      resolve()
-      return
-    }
-    const existing = document.querySelector('script[data-google-gsi]')
-    if (existing) {
-      existing.addEventListener('load', () => resolve())
-      existing.addEventListener('error', () => reject(new Error('Failed to load Google script')))
-      return
-    }
-    const script = document.createElement('script')
-    script.src = 'https://accounts.google.com/gsi/client'
-    script.async = true
-    script.defer = true
-    script.dataset.googleGsi = 'true'
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Failed to load Google script'))
-    document.head.appendChild(script)
-  })
-}
+const { renderGoogleButton } = useGoogleSignIn()
 
 async function handleGoogleCredential(response) {
   error.value = ''
@@ -281,27 +259,9 @@ async function handleGoogleCredential(response) {
 
 onMounted(async () => {
   const clientId = config.public.googleClientId
-  if (!clientId) return
-
+  if (!clientId || !googleButtonRef.value) return
   try {
-    await loadGoogleScript()
-    window.google.accounts.id.initialize({
-      client_id: clientId,
-      callback: handleGoogleCredential
-    })
-    if (googleButtonRef.value) {
-      // GIS button width is a fixed pixel value (no %), so measure the actual
-      // container instead of hardcoding one — otherwise it overflows on narrow screens.
-      const width = googleButtonRef.value.clientWidth || 360
-      window.google.accounts.id.renderButton(googleButtonRef.value, {
-        type: 'standard',
-        theme: 'outline',
-        size: 'large',
-        shape: 'rectangular',
-        text: 'continue_with',
-        width
-      })
-    }
+    await renderGoogleButton(googleButtonRef.value, clientId, handleGoogleCredential)
   } catch {
     googleError.value = 'Could not load Google Sign-In right now.'
   }

@@ -455,7 +455,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watchEffect } from 'vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -480,20 +480,60 @@ onMounted(async () => {
   }
 })
 
-useHead({
-  title: 'Design Your Own Plate - SVRVE Ceramics',
-  meta: [
-    {
-      name: 'description',
-      content: 'Create a one-of-a-kind ceramic plate. Add your own text, choose a font and color, and place it exactly where you want.'
+// --- SEO (admin-editable via /admin/seo) ---
+// Awaited so the fetch resolves during SSR, before the head tags below are
+// written into the response HTML — required for Google to see them at all.
+const { data: pageSeo } = await useFetch(`${apiBase}/page-seo/design`)
+
+function getSeoValue(apiValue, fallback) {
+  if (apiValue && String(apiValue).trim() !== '') return String(apiValue).trim()
+  return fallback
+}
+
+const DEFAULT_SEO_TITLE = 'Design Your Own Plate - SVRVE Ceramics'
+const DEFAULT_SEO_DESCRIPTION =
+  'Create a one-of-a-kind ceramic plate. Add your own text, choose a font and color, and place it exactly where you want.'
+
+watchEffect(() => {
+  const seo = pageSeo.value || {}
+  const seoTitle = getSeoValue(seo.seoTitle, DEFAULT_SEO_TITLE)
+  const metaDesc = getSeoValue(seo.metaDescription, DEFAULT_SEO_DESCRIPTION)
+  const ogTitle = getSeoValue(seo.ogTitle, seoTitle)
+  const ogDesc = getSeoValue(seo.ogDescription, metaDesc)
+  const ogImage = getSeoValue(seo.ogImageUrl, '')
+  const siteUrlBase = String(config.public.siteUrl || '').replace(/\/$/, '')
+  const canonical = getSeoValue(seo.canonicalUrl, `${siteUrlBase}/design`)
+
+  const metaTags = [{ name: 'description', content: metaDesc }]
+
+  if (seo.primaryKeyword && String(seo.primaryKeyword).trim() !== '') {
+    const keywords = [String(seo.primaryKeyword).trim()]
+    if (seo.secondaryKeywords && String(seo.secondaryKeywords).trim() !== '') {
+      keywords.push(String(seo.secondaryKeywords).trim())
     }
-  ],
-  link: [
-    {
-      rel: 'stylesheet',
-      href: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Merriweather:wght@400;700&family=Montserrat:wght@400;600&family=Oswald:wght@400;600&family=Bebas+Neue&family=Dancing+Script&family=Pacifico&family=Caveat&display=swap'
-    }
-  ]
+    metaTags.push({ name: 'keywords', content: keywords.join(', ') })
+  }
+
+  metaTags.push({ property: 'og:title', content: ogTitle })
+  metaTags.push({ property: 'og:description', content: ogDesc })
+  if (ogImage) metaTags.push({ property: 'og:image', content: ogImage })
+
+  const indexStatus = String(seo.indexStatus || '').trim().toLowerCase()
+  if (indexStatus.startsWith('noindex')) {
+    metaTags.push({ name: 'robots', content: indexStatus })
+  }
+
+  useHead({
+    title: seoTitle,
+    meta: metaTags,
+    link: [
+      { rel: 'canonical', href: canonical },
+      {
+        rel: 'stylesheet',
+        href: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Merriweather:wght@400;700&family=Montserrat:wght@400;600&family=Oswald:wght@400;600&family=Bebas+Neue&family=Dancing+Script&family=Pacifico&family=Caveat&display=swap'
+      }
+    ]
+  })
 })
 
 // --- Menu ---
