@@ -71,6 +71,16 @@
           <span class="menu-label">Return Policy</span>
         </NuxtLink>
 
+        <NuxtLink to="/privacy-policy" class="menu-item" @click="closeMenu">
+          <span class="menu-icon">🔒</span>
+          <span class="menu-label">Privacy Policy</span>
+        </NuxtLink>
+
+        <NuxtLink to="/terms-of-service" class="menu-item" @click="closeMenu">
+          <span class="menu-icon">📄</span>
+          <span class="menu-label">Terms of Service</span>
+        </NuxtLink>
+
         <NuxtLink v-if="auth.isAuthenticated.value" to="/orders" class="menu-item" @click="closeMenu">
           <span class="menu-icon">📋</span>
           <span class="menu-label">Orders</span>

@@ -31,6 +31,7 @@
             <NuxtLink to="/admin/blog" class="admin-nav-link">Blog</NuxtLink>
             <NuxtLink to="/admin/popups" class="admin-nav-link">Popups</NuxtLink>
             <NuxtLink to="/admin/analytics" class="admin-nav-link">Analytics</NuxtLink>
+            <NuxtLink to="/admin/error-logs" class="admin-nav-link">Error Logs</NuxtLink>
           </nav>
           <button type="button" class="logout-btn" @click="logout">Log out</button>
         </div>
