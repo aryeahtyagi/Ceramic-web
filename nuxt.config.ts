@@ -56,10 +56,16 @@ export default defineNuxtConfig({
         { property: 'og:description', content: 'Discover beautiful handcrafted ceramic products. Shop unique dinnerware, vases, decorative pieces, and mugs.' },
         { property: 'og:url', content: 'https://svrve.com' },
         { property: 'og:site_name', content: 'SVRVE' },
+        { property: 'og:image', content: 'https://svrve.com/og-image.png' },
+        { property: 'og:image:width', content: '1200' },
+        { property: 'og:image:height', content: '630' },
         // Twitter
         { name: 'twitter:card', content: 'summary_large_image' },
         { name: 'twitter:title', content: 'Ceramic Artistry - Handcrafted Ceramics' },
-        { name: 'twitter:description', content: 'Discover beautiful handcrafted ceramic products. Shop unique dinnerware, vases, decorative pieces, and mugs.' }
+        { name: 'twitter:description', content: 'Discover beautiful handcrafted ceramic products. Shop unique dinnerware, vases, decorative pieces, and mugs.' },
+        { name: 'twitter:image', content: 'https://svrve.com/og-image.png' },
+        // Browser chrome (address bar) color on mobile — matches the logo's cream background
+        { name: 'theme-color', content: '#f0e9da' }
       ],
       link: [
         // Global canonical URL (can be overridden per page)
@@ -69,7 +75,14 @@ export default defineNuxtConfig({
         {
           rel: 'stylesheet',
           href: 'https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@400;500&display=swap'
-        }
+        },
+        // Favicon / app icons — the "S" mark cropped from the SVRVE Studio logo
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+        { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' },
+        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
+        { rel: 'icon', type: 'image/png', sizes: '96x96', href: '/favicon-96x96.png' },
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+        { rel: 'manifest', href: '/site.webmanifest' }
       ],
       script: [
         {
