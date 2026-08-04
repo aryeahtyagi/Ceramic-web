@@ -42,6 +42,11 @@
           <input v-model="form.name" type="text" placeholder="e.g. Free Mug Offer V2" />
         </label>
 
+        <label class="field">
+          <span class="field-label">CTA button text</span>
+          <input v-model="form.ctaText" type="text" maxlength="100" placeholder="Sign up &amp; claim free mug" />
+        </label>
+
         <div class="editor-tabs">
           <button type="button" class="tab-btn" :class="{ active: !showPreview }" @click="showPreview = false">Edit HTML</button>
           <button type="button" class="tab-btn" :class="{ active: showPreview }" @click="showPreview = true">Preview</button>
@@ -61,7 +66,7 @@
               <button type="button" class="preview-close" aria-label="Close">✕</button>
               <div class="preview-content" v-html="form.htmlContent || '<p class=\'preview-empty\'>Nothing to preview yet — add some HTML.</p>'"></div>
               <div class="preview-actions">
-                <span class="preview-cta">Sign up &amp; claim free mug</span>
+                <span class="preview-cta">{{ form.ctaText || 'Sign up & claim free mug' }}</span>
                 <div v-if="form.showGoogleButton" ref="previewGoogleButtonRef" class="preview-google-btn"></div>
                 <p v-if="previewGoogleError" class="preview-google-error">{{ previewGoogleError }}</p>
                 <span class="preview-later">Maybe later</span>
@@ -114,7 +119,7 @@ const saveError = ref('')
 const savedFlash = ref(false)
 
 function emptyForm() {
-  return { name: '', htmlContent: '', showGoogleButton: false }
+  return { name: '', htmlContent: '', ctaText: '', showGoogleButton: false }
 }
 const form = reactive(emptyForm())
 
@@ -147,6 +152,7 @@ function editPopup(p) {
   editingId.value = p.id
   form.name = p.name || ''
   form.htmlContent = p.htmlContent || ''
+  form.ctaText = p.ctaText || ''
   form.showGoogleButton = !!p.showGoogleButton
   showPreview.value = false
   saveError.value = ''
@@ -158,7 +164,12 @@ async function save() {
   saveError.value = ''
   savedFlash.value = false
   try {
-    const payload = { name: form.name.trim() || 'Untitled Popup', htmlContent: form.htmlContent, showGoogleButton: form.showGoogleButton }
+    const payload = {
+      name: form.name.trim() || 'Untitled Popup',
+      htmlContent: form.htmlContent,
+      ctaText: form.ctaText.trim(),
+      showGoogleButton: form.showGoogleButton
+    }
     if (editingId.value) {
       await $fetch(`${apiBase}/admin/popups/${editingId.value}`, { method: 'PUT', body: payload, headers: authHeaders() })
     } else {

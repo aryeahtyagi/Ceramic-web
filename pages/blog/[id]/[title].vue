@@ -159,7 +159,7 @@
                 :to="loginSubscribeUrl"
                 @click="handlePopupCtaClick"
               >
-                Sign up &amp; claim free mug
+                {{ activePopup?.ctaText || 'Sign up & claim free mug' }}
               </NuxtLink>
               <div v-if="activePopup?.showGoogleButton" ref="popupGoogleButtonRef" class="blog-nl-google-btn"></div>
               <p v-if="popupGoogleError" class="blog-nl-google-error">{{ popupGoogleError }}</p>
