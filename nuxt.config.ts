@@ -22,7 +22,12 @@ export default defineNuxtConfig({
       siteUrl:
         process.env.NUXT_PUBLIC_SITE_URL ||
         (isNuxtDev ? 'http://localhost:3000' : 'https://svrve.com'),
-      googleClientId: process.env.NUXT_PUBLIC_GOOGLE_CLIENT_ID || ''
+      // Not a secret — it's meant to be embedded in frontend JS. Hardcoded fallback so a prod
+      // server that hasn't been given this (newer) env var yet still shows the Google button,
+      // same safety net apiBase/siteUrl already have above.
+      googleClientId:
+        process.env.NUXT_PUBLIC_GOOGLE_CLIENT_ID ||
+        (isNuxtDev ? '' : '1069497687982-qn8po112qgf64bs1eoug2l7nlumv08mh.apps.googleusercontent.com')
     }
   },
 
