@@ -447,20 +447,22 @@ useHead(() => {
           itemListElement: products.map((product, index) => ({
             '@type': 'ListItem',
             position: index + 1,
-            item: { '@type': 'Product', '@id': `${siteUrl}${productUrl(product)}`, name: product.name, description: product.description || '' }
+            url: `${siteUrl}${productUrl(product)}`
           }))
         }
       : undefined
   }
   if (!collectionPageSchema.mainEntity) delete collectionPageSchema.mainEntity
 
-  const productSchemas = products.map(product => {
+  // Only products with a valid price get a Product schema (Google requires offers)
+  const productSchemas = products.filter(product => Number(product.price) > 0).map(product => {
     const catalogImage = product.raw?.images?.find(img => img.catalogImage) || product.raw?.images?.[0]
     const imageUrl = catalogImage?.imageUrl ? resolveImageUrl(catalogImage.imageUrl) : resolveImageUrl(product.image)
     const productUrlFull = `${siteUrl}${productUrl(product)}`
     const schema = {
       '@context': 'https://schema.org',
       '@type': 'Product',
+      '@id': productUrlFull,
       name: product.name,
       description: product.description || product.raw?.about || '',
       image: imageUrl ? [imageUrl] : undefined,

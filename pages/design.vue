@@ -37,7 +37,7 @@
       <div class="auth-modal">
         <h2 id="auth-modal-title" class="auth-modal-title">Sign Up Required</h2>
         <p class="auth-modal-message">Please sign up or log in to design your own plate.</p>
-        <NuxtLink :to="'/login?redirect=' + encodeURIComponent('/design')" class="auth-modal-btn">Log In / Sign Up</NuxtLink>
+        <NuxtLink :to="'/login?redirect=' + encodeURIComponent('/design')" rel="nofollow" class="auth-modal-btn">Log In / Sign Up</NuxtLink>
       </div>
     </div>
 

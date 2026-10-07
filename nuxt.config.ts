@@ -68,8 +68,6 @@ export default defineNuxtConfig({
         { name: 'theme-color', content: '#f0e9da' }
       ],
       link: [
-        // Global canonical URL (can be overridden per page)
-        { rel: 'canonical', href: 'https://svrve.com' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
         {

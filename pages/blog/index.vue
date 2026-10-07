@@ -64,7 +64,7 @@
           class="blog-card"
         >
           <NuxtLink 
-            :to="`/blog/${post.id}/${post.titleSlug}`"
+            :to="post.path"
             class="blog-card-link"
           >
             <div v-if="post.image && resolveImageUrl(post.image)" class="blog-image-wrapper">
@@ -117,6 +117,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { blogPath } from '~/utils/blogUrl.js'
 
 // Force SSR so blog list is in initial HTML for SEO
 definePageMeta({ ssr: true })
@@ -146,15 +147,6 @@ const { data: blogsData, pending, error, refresh } = await useFetch(blogsUrl, {
 
 const isLoading = computed(() => pending.value)
 
-// Slugify function for URL-friendly titles
-const slugify = (s) =>
-  String(s || '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-
 // Transform API data to display format
 const blogPosts = computed(() => {
   if (!blogsData.value || !Array.isArray(blogsData.value)) {
@@ -170,7 +162,7 @@ const blogPosts = computed(() => {
     id: blog.id,
     slug: blog.slug || `blog-${blog.id}`,
     title: blog.title || 'Untitled',
-    titleSlug: slugify(blog.title || 'Untitled'),
+    path: blogPath(blog),
     excerpt: blog.metaDescription || (blog.content ? blog.content.replace(/<[^>]*>/g, '').substring(0, 150) + '...' : 'No description available.'),
     image: blog.featuredImageUrl || '',
     date: blog.publishedAt ? new Date(blog.publishedAt) : new Date(blog.createdAt || Date.now()),
@@ -246,7 +238,7 @@ useHead(() => {
             position: index + 1,
             item: {
               '@type': 'BlogPosting',
-              '@id': `${siteUrl}/blog/${post.id}/${post.titleSlug}`,
+              '@id': `${siteUrl}${post.path}`,
               headline: post.title,
               description: post.excerpt,
               image: post.image ? resolveImageUrl(post.image) : undefined,
@@ -261,7 +253,7 @@ useHead(() => {
   if (!collectionPageSchema.mainEntity) delete collectionPageSchema.mainEntity
 
   const blogPostingSchemas = posts.map(post => {
-    const postUrl = `${siteUrl}/blog/${post.id}/${post.titleSlug}`
+    const postUrl = `${siteUrl}${post.path}`
     const schema = {
       '@context': 'https://schema.org',
       '@type': 'BlogPosting',

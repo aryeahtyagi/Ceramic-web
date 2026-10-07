@@ -1,4 +1,10 @@
 User-agent: *
 Allow: /
+# Login/account/admin pages have no search value; login links carry ?redirect= params
+# that otherwise create endless "Page with redirect" URLs in Search Console
+Disallow: /login
+Disallow: /admin
+Disallow: /orders
+Disallow: /purchased
 
 Sitemap: https://svrve.com/sitemap.xml

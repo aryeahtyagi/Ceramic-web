@@ -166,6 +166,9 @@ definePageMeta({
   layout: false
 })
 
+// Login has no layout, so set its head tags here; it shouldn't be indexed
+useHead({ meta: [{ name: 'robots', content: 'noindex, follow' }] })
+
 const route = useRoute()
 const router = useRouter()
 const auth = useAuth()

@@ -157,6 +157,7 @@
               <NuxtLink
                 class="blog-nl-cta"
                 :to="loginSubscribeUrl"
+                rel="nofollow"
                 @click="handlePopupCtaClick"
               >
                 {{ activePopup?.ctaText || 'Sign up & claim free mug' }}
@@ -177,6 +178,7 @@
 <script setup>
 import { computed, ref, watch, onScopeDispose, onMounted, onUnmounted, nextTick } from 'vue'
 import { BLOG_NEWSLETTER_DISMISS_KEY } from '~/utils/blogNewsletterStorage.js'
+import { blogPath } from '~/utils/blogUrl.js'
 
 const route = useRoute()
 /** Top-level ref so template unwraps correctly (nested auth.isAuthenticated does NOT unwrap in templates) */
@@ -193,6 +195,14 @@ const blogUrl = blogId ? `${apiBase}/blog/${blogId}` : null
 const { data: blog, pending, error, refresh } = await useFetch(blogUrl, {
   key: `blog-${blogId || 'missing'}`,
 })
+
+// One URL per post: permanently redirect old/alternate slugs to the canonical path
+if (blog.value?.id) {
+  const canonicalPath = blogPath(blog.value)
+  if (route.path.replace(/\/+$/, '') !== canonicalPath) {
+    await navigateTo(canonicalPath, { redirectCode: 301, replace: true })
+  }
+}
 
 // Related products: fetch when blog has category; guard updates so we never set state after unmount
 const relatedProductsResponse = ref(null)
@@ -619,8 +629,8 @@ useHead(() => {
   const ogTitle = blogData.h1Title || blogData.title || 'Blog | SVRVE'
   const ogDesc = getSeoValue(blogData.ogDescription, metaDesc)
   const ogImage = getSeoValue(blogData.ogImageUrl, blogData.featuredImageUrl ? resolveImageUrl(blogData.featuredImageUrl) : '')
-  const currentUrl = `${siteUrl}/blog/${blogData.id}/${slugify(blogData.title)}`
-  const canonical = getSeoValue(blogData.canonicalUrl, currentUrl)
+  const currentUrl = `${siteUrl}${blogPath(blogData)}`
+  const canonical = currentUrl
 
   const metaTags = [
     { name: 'description', content: metaDesc },
@@ -668,13 +678,15 @@ useHead(() => {
   
   // Build Product schemas from related products (guard in case component is tearing down)
   const products = (relatedProducts.value || []).slice()
-  const productSchemas = products.map(product => {
+  // Only products with a valid price get a Product schema (Google requires offers)
+  const productSchemas = products.filter(product => Number(product.price) > 0).map(product => {
     const productImage = getProductImage(product)
     const productUrl = `${siteUrl}${getProductUrl(product)}`
     
     const productSchema = {
       '@context': 'https://schema.org',
       '@type': 'Product',
+      '@id': productUrl,
       name: product.name,
       description: product.raw?.description || product.raw?.about || '',
       image: productImage ? [productImage] : undefined,
@@ -758,7 +770,7 @@ useHead(() => {
     },
     mainEntityOfPage: {
       '@type': 'WebPage',
-      '@id': blogData.canonicalUrl || currentUrl
+      '@id': currentUrl
     },
     articleSection: blogData.category || undefined,
     keywords: keywords.length > 0 ? keywords.join(', ') : undefined,
@@ -768,11 +780,8 @@ useHead(() => {
     ...(tagsArray.length > 0 && { articleTag: tagsArray }),
     // Add mentions of related products
     ...(productSchemas.length > 0 && { 
-      mentions: productSchemas.map(p => ({
-        '@type': 'Product',
-        '@id': p.url,
-        name: p.name
-      }))
+      // Reference the full Product schemas by @id (a bare Product here would lack offers)
+      mentions: productSchemas.map(p => ({ '@id': p.url }))
     })
   }
   
